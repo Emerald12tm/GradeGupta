@@ -1,0 +1,35 @@
+{
+  "name": "shaurya-grades",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w web",
+    "dev:mobile": "npm run start -w mobile",
+    "build:web": "npm run build -w web",
+    "test": "npm run test -w @sg/core",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:types": "supabase gen types typescript --local > packages/core/src/database.types.ts",
+    "db:types:remote": "supabase gen types typescript --linked > packages/core/src/database.types.ts",
+    "db:push": "supabase db push",
+    "db:reset": "supabase db reset"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "unrs-resolver@1.12.2": true,
+    "supabase@2.118.0": true
+  },
+  "devDependencies": {
+    "supabase": "^2.118.0"
+  }
+}
