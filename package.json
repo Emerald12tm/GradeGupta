@@ -1,35 +1,69 @@
 {
-  "name": "shaurya-grades",
-  "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev:web": "npm run dev -w web",
-    "dev:mobile": "npm run start -w mobile",
-    "build:web": "npm run build -w web",
-    "test": "npm run test -w @sg/core",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "db:types": "supabase gen types typescript --local > packages/core/src/database.types.ts",
-    "db:types:remote": "supabase gen types typescript --linked > packages/core/src/database.types.ts",
-    "db:push": "supabase db push",
-    "db:reset": "supabase db reset"
-  },
-  "overrides": {
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "allowScripts": {
-    "esbuild@0.28.2": true,
-    "unrs-resolver@1.12.2": true,
-    "supabase@2.118.0": true
+  "name": "gradegupta",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@expo/ui": "~58.0.22",
+    "@tanstack/react-query": "^5.104.5",
+    "expo": "~58.0.17",
+    "expo-background-task": "~58.0.11",
+    "expo-constants": "~58.0.13",
+    "expo-device": "~58.0.5",
+    "expo-font": "~58.0.9",
+    "expo-glass-effect": "~58.0.4",
+    "expo-image": "~58.0.16",
+    "expo-linking": "~58.0.14",
+    "expo-local-authentication": "~58.0.2",
+    "expo-notifications": "~58.1.6",
+    "expo-router": "~58.0.25",
+    "expo-secure-store": "~58.0.2",
+    "expo-splash-screen": "~58.0.11",
+    "expo-sqlite": "~58.0.13",
+    "expo-status-bar": "~58.0.4",
+    "expo-symbols": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "expo-task-manager": "~58.0.12",
+    "expo-web-browser": "~58.0.6",
+    "node-html-parser": "^9.0.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-gesture-handler": "~3.3.0",
+    "react-native-reanimated": "4.7.1",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-svg": "15.16.0",
+    "react-native-web": "~0.21.4",
+    "react-native-worklets": "0.13.0",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "supabase": "^2.118.0"
-  }
+    "@types/jest": "^30.0.0",
+    "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^58.0.4",
+    "jest": "^30.5.2",
+    "jest-expo": "^58.0.12",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "check": "npm run typecheck && npm run lint && npm test"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "**/*.test.ts?(x)"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.expo/"
+    ]
+  },
+  "private": true
 }
