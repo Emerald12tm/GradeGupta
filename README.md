@@ -43,6 +43,11 @@ Your HAC password and grades **never leave your phone**. There's no server and n
 **Insights**
 - GPA over time, biggest changes this week, how close each class is to the next letter, and which category is costing you the most points.
 
+**Accounts and themes**
+- Pick your district from a searchable list (or type any HAC address).
+- Save several HAC accounts (siblings, or more than one district) and switch from the More tab. Each keeps its own grades, history and planner, and background alerts cover all of them.
+- 11 color themes (Classic, Green, Ocean, Sunset, Amethyst, Ruby, Lemon, Magenta, Marine, Midnight, Terracotta) with System / Light / Dark appearance.
+
 **Privacy**
 - Optional Face ID / fingerprint lock.
 - Password stored in the iOS Keychain / Android Keystore.
@@ -50,18 +55,41 @@ Your HAC password and grades **never leave your phone**. There's no server and n
 
 ## Getting started
 
-You'll need **Node 20+** and either **Android Studio** (Android emulator or device) or **Xcode on a Mac** (iOS). The app uses native modules (secure storage, background tasks, SQLite), so it runs as a [development build](https://docs.expo.dev/develop/development-builds/introduction/), not in Expo Go.
+You'll need **Node 20+**. The project is on **Expo SDK 57**.
+
+**Quickest: Expo Go.** Install Expo Go (SDK 57) on your phone, then:
 
 ```bash
 npm install
-npm run android      # builds and installs a dev build on an emulator/device
-npm run ios          # macOS only
-npm start            # after the first build: start the JS server and reload
+npm start            # scan the QR code, or enter exp://<your-PC-IP>:8081 in Expo Go
 ```
 
-No Mac? You can build iOS in the cloud with EAS: `npx eas-cli@latest build --profile development --platform ios`.
+Your phone and computer must be on the same Wi-Fi. In Expo Go, background grade checks don't run (alerts only arrive while the app is open).
 
-Sign in with your district's HAC address (the site you normally open, e.g. `hac.yourdistrict.org`) and your HAC username and password.
+**Full build** (background alerts, Face ID): needs Android Studio, or Xcode on a Mac.
+
+```bash
+npm run android      # builds and installs a development build
+npm run ios          # macOS only
+```
+
+No Mac? Build iOS in the cloud with EAS: `npx eas-cli@latest build --profile development --platform ios`.
+
+Pick your district (or choose "My district isn't listed" and type your HAC address) and sign in with your HAC username and password.
+
+**Using it away from home**
+
+| Option | Needs this computer on? | Cost | Background alerts |
+|---|---|---|---|
+| `npm run start:anywhere`: Expo Go over an internet tunnel | Yes | Free | No |
+| `npm run build:android`: installable Android app (`.apk`) | No | Free EAS tier | Yes |
+| `npm run build:ios`: iPhone install via EAS + TestFlight / ad hoc | No | Apple Developer Program ($99/yr) | Yes |
+
+**Builds:** the first time, run `npx eas-cli@latest login` (free Expo account). Then run `npm run build:android`. When the cloud build finishes, EAS prints a link and QR code. Open it on your Android phone, download the `.apk` and install it. Android will ask you to allow installing apps from your browser.
+
+For iPhone, join the Apple Developer Program, then run `npm run build:ios`. EAS walks you through registering your iPhone.
+
+**Web preview:** `npm start`, then press `w`. The screens render, but signing in doesn't work in a browser: browsers block requests to another site (your district's HAC).
 
 ## Scripts
 
@@ -104,6 +132,14 @@ docs/             Architecture, grade math and HAC scraping notes
 - **Districts differ.** Parsers are tested against synthetic pages that copy HAC's markup. If something looks wrong for your district, see [HAC scraping](docs/HAC-SCRAPING.md#when-your-district-looks-different).
 - **Attendance** shows the month HAC opens on (usually the current one).
 - **Not built yet:** home-screen widgets.
+
+## Privacy, terms and security
+
+- [Privacy Policy](docs/PRIVACY.md): no servers, no tracking; data stays on the phone.
+- [Terms of Use](docs/TERMS.md): unofficial app, estimates only, use your own account, no warranty.
+- [Security](SECURITY.md): how credentials and data are protected, and how to report a vulnerability.
+
+The same policies are in the app under More → About & legal, and users agree to them when they sign in. They describe what the app does but were not written by a lawyer; get them reviewed before publishing to an app store.
 
 ## License
 

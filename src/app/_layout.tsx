@@ -1,14 +1,16 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useMemo } from 'react';
 
 // Importing this module also registers the background sync task, which must happen at startup.
 import { disableBackgroundSync, enableBackgroundSync } from '@/background/task';
 import { LockGate } from '@/components/lock-gate';
 import { queryClient } from '@/data/queries';
 import { useSession } from '@/data/session';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 import { useSettingsStore } from '@/settings/settings';
 import { configureNotifications } from '@/sync/notifications';
 
@@ -25,6 +27,21 @@ configureNotifications();
 
 export default function RootLayout() {
   const scheme = useColorScheme();
+  const palette = useTheme();
+  const navigationTheme = useMemo(() => {
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: palette.tint,
+        background: palette.background,
+        card: palette.backgroundElement,
+        text: palette.text,
+        border: palette.border,
+      },
+    };
+  }, [scheme, palette]);
   const status = useSession((s) => s.status);
   const restore = useSession((s) => s.restore);
   const hydrated = useSettingsStore((s) => s.hydrated);
@@ -51,7 +68,8 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={navigationTheme}>
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <LockGate>
           <Stack screenOptions={{ headerBackButtonDisplayMode: 'minimal' }}>
             <Stack.Protected guard={status === 'signedIn'}>
@@ -64,10 +82,13 @@ export default function RootLayout() {
               <Stack.Screen name="attendance" options={{ title: 'Attendance' }} />
               <Stack.Screen name="progress" options={{ title: 'Progress Report' }} />
               <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+              <Stack.Screen name="add-account" options={{ title: 'Add Account', presentation: 'modal' }} />
             </Stack.Protected>
             <Stack.Protected guard={status === 'signedOut'}>
               <Stack.Screen name="login" options={{ headerShown: false }} />
             </Stack.Protected>
+            {/* Always reachable: the sign-in agreement links here before an account exists. */}
+            <Stack.Screen name="legal" options={{ title: 'About & Legal' }} />
           </Stack>
         </LockGate>
       </ThemeProvider>

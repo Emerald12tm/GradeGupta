@@ -61,6 +61,12 @@ describe('computeAverage', () => {
     expect(computeAverage(c.categories, c.assignments).categories[0].average).toBeCloseTo(95, 10);
   });
 
+  it('adds extra credit to earned points without adding possible points', () => {
+    const c = course({ assignments: [...course().assignments, { ...a('ec', 'Major', 5, 0), isExtraCredit: true }] });
+    // Major: (80 + 5) / 100 = 85 → 0.6·85 + 0.4·95 = 89
+    expect(computeAverage(c.categories, c.assignments).average).toBeCloseTo(89, 10);
+  });
+
   it('falls back to points when no category has weight', () => {
     const r = computeAverage([], [a('x', '', 45, 50), a('y', '', 40, 50)]);
     expect(r.average).toBeCloseTo(85, 10);

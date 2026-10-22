@@ -92,11 +92,17 @@ export function describeChange(c: GradeChange): { title: string; body: string } 
   const fmt = (n: number | null) => (n === null ? '—' : String(Math.round(n * 100) / 100));
   switch (c.kind) {
     case 'new-grade':
-      return { title: `New grade in ${c.courseName}`, body: `${c.assignment}: ${fmt(c.score)}/${fmt(c.totalPoints)}` };
+      return {
+        title: `New grade in ${c.courseName}`,
+        body:
+          c.totalPoints === 0
+            ? `${c.assignment}: +${fmt(c.score)} extra credit`
+            : `${c.assignment}: ${fmt(c.score)}/${fmt(c.totalPoints)}`,
+      };
     case 'grade-changed':
       return {
         title: `Grade updated in ${c.courseName}`,
-        body: `${c.assignment}: ${fmt(c.from)} → ${fmt(c.to)} (out of ${fmt(c.totalPoints)})`,
+        body: `${c.assignment}: ${fmt(c.from)} → ${fmt(c.to)} ${c.totalPoints === 0 ? '(extra credit)' : `(out of ${fmt(c.totalPoints)})`}`,
       };
     case 'average-changed':
       return { title: `${c.courseName} average changed`, body: `${c.from.toFixed(2)} → ${c.to.toFixed(2)}` };

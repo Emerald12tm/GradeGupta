@@ -72,7 +72,11 @@ export class HacClient {
 
   /** Signs in. Throws `HacError('bad-credentials')` when HAC rejects the username/password. */
   async login(): Promise<void> {
-    const page = await this.request(HAC_PATHS.login);
+    // Sign out first: the OS cookie store is shared by every saved account, so another
+    // account's session may still be active on this host. LogOff redirects to the login
+    // page, so its response usually is the form we need.
+    let page = await this.request(HAC_PATHS.logout);
+    if (!isLoginPage(page)) page = await this.request(HAC_PATHS.login);
     let body: URLSearchParams;
     try {
       body = buildLoginForm(page, this.username, this.password);
@@ -149,6 +153,25 @@ export class HacClient {
     return html;
   }
 
+  /**
+   * Security check: after redirects, the response must still come from the district's HAC
+   * host over HTTPS. Anything else (a redirect to another site or to plain http) is refused,
+   * so the session and pages are never handled on an unexpected origin.
+   * `url` is empty for responses built in tests, which are trusted.
+   */
+  private assertSameSite(url: string): void {
+    if (!url) return;
+    let final: URL;
+    try {
+      final = new URL(url);
+    } catch {
+      return;
+    }
+    if (final.protocol !== 'https:' || `https://${final.host}` !== this.baseUrl) {
+      throw new HacError('unexpected-page', `HAC sent us to a different website (${final.host}), so GradeGupta stopped to keep your account safe.`);
+    }
+  }
+
   /** One HTTP request with a timeout. Returns the response body as text. */
   private async request(path: string, init: RequestInit = {}): Promise<string> {
     const controller = new AbortController();
@@ -160,6 +183,7 @@ export class HacClient {
         signal: controller.signal,
       });
       if (res.status >= 500) throw new HacError('network', `HAC returned an error (${res.status}).`);
+      this.assertSameSite(res.url);
       return await res.text();
     } catch (e) {
       if (e instanceof HacError) throw e;

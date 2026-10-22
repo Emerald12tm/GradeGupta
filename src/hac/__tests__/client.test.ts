@@ -20,8 +20,12 @@ function fakeHac(options: { password?: string } = {}) {
 
     const respond = (html: string) => new Response(html, { status: 200 });
 
+    if (path === HAC_PATHS.logout) {
+      signedIn = false;
+      return respond(F.LOGIN_PAGE); // HAC redirects LogOff to the login page
+    }
     if (path === HAC_PATHS.login) {
-      if (method === 'GET') return respond(F.LOGIN_PAGE);
+      if (method === 'GET') return respond(signedIn ? F.HOME_PAGE : F.LOGIN_PAGE);
       const form = new URLSearchParams(body);
       signedIn = form.get('LogOnDetails.Password') === (options.password ?? 'right');
       return respond(signedIn ? F.HOME_PAGE : F.LOGIN_FAILED_PAGE);
@@ -51,10 +55,20 @@ describe('HacClient', () => {
     const page = await client.getAssignments();
     expect(page.courses[0].name).toBe('AP Physics 1');
     expect(hac.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
-      `GET ${HAC_PATHS.login}`,
+      `GET ${HAC_PATHS.logout}`,
       `POST ${HAC_PATHS.login}`,
       `GET ${HAC_PATHS.assignments}`,
     ]);
+  });
+
+  it('signs out an existing session (another saved account) before signing in', async () => {
+    const hac = fakeHac();
+    await new HacClient(creds(), { fetch: hac.fetch }).login();
+    // A second client on the same host, as when switching accounts, must not reuse the session.
+    const second = new HacClient(creds(), { fetch: hac.fetch });
+    await second.login();
+    expect(hac.calls.filter((c) => c.path === HAC_PATHS.logout)).toHaveLength(2);
+    expect((await second.getSchedule())[0].courseCode).toBe('3500 - 1');
   });
 
   it('reports bad credentials with HAC’s message', async () => {
@@ -94,6 +108,20 @@ describe('HacClient', () => {
     });
     await expect(client.login()).rejects.toBeInstanceOf(HacError);
     await expect(client.login()).rejects.toMatchObject({ code: 'network' });
+  });
+
+  it('refuses responses that were redirected to another site or to plain http', async () => {
+    const redirectedTo = (url: string) => async () => {
+      const res = new Response(F.LOGIN_PAGE);
+      Object.defineProperty(res, 'url', { value: url });
+      return res;
+    };
+    for (const url of ['https://evil.example.com/HomeAccess/Account/LogOn', 'http://hac.example.org/HomeAccess/Account/LogOn']) {
+      const client = new HacClient(creds(), { fetch: redirectedTo(url) });
+      await expect(client.login()).rejects.toMatchObject({ code: 'unexpected-page' });
+    }
+    const sameSite = new HacClient(creds(), { fetch: redirectedTo('https://hac.example.org/HomeAccess/Account/LogOn') });
+    await expect(sameSite.login()).rejects.toMatchObject({ code: 'bad-credentials' });
   });
 
   it('rejects a site that is not HAC', async () => {

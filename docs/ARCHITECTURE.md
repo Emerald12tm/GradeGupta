@@ -69,19 +69,32 @@ To test in a debug build: Settings → "Run background check now (dev)". On iOS 
 
 ## Storage
 
-**Secure store:** `hac.credentials.v1`: `{ baseUrl, username, password }`.
+**Secure store** (`src/storage/accounts.ts`):
+- `accounts.v1`: `{ accounts: [{ id, baseUrl, username, districtName?, studentName? }], activeId }`, with no passwords.
+- `account.<id>.password`: one entry per account.
 
-**SQLite** (`gradegupta.db`, schema in `src/storage/db.ts`):
+**SQLite** (schema in `src/storage/db.ts`):
 
-| Table | Contents |
-|---|---|
-| `kv` | Settings JSON |
-| `snapshots` | Latest `Course[]` per marking period (also under `current`), used for diffing and offline viewing |
-| `course_history` | `(course_id, taken_at, average)`, appended when an average changes |
-| `gpa_history` | `(taken_at, weighted, unweighted)`, appended when GPA changes |
-| `todos` | Planner items plus scheduled reminder ids |
+| File | Table | Contents |
+|---|---|---|
+| `gradegupta.db` | `kv` | Settings JSON (shared by all accounts: theme, GPA scale, alerts…) |
+| `account-<id>.db` | `snapshots` | Latest `Course[]` per marking period (also under `current`), used for diffing and offline viewing |
+| | `course_history` | `(course_id, taken_at, average)`, appended when an average changes |
+| | `gpa_history` | `(taken_at, weighted, unweighted)`, appended when GPA changes |
+| | `todos` | Planner items plus scheduled reminder ids |
 
-Timestamps are ISO-8601. Signing out deletes the credentials and clears every table.
+Timestamps are ISO-8601. Removing an account deletes its password and its whole `account-<id>.db` file.
+
+On the web preview, `db.web.ts` replaces `db.ts` with in-memory storage (expo-sqlite needs cross-origin isolation headers the dev server doesn't send).
+
+## Accounts
+
+`src/data/session.ts` holds the saved accounts and the active one. Only the active account has a `HacClient`. Switching creates a fresh client, which signs in again. Every account shares the phone's cookie store, so `HacClient.login()` always signs out of HAC first; a client kept from before could otherwise be using another student's session. React Query keys start with the account id, so cached data never crosses accounts. The background task syncs every account in turn, passing each `accountId` to the database functions explicitly.
+
+## Districts and themes
+
+- `src/config/districts.ts` is the searchable district list. Every entry's `/HomeAccess/Account/LogOn` page was checked to serve the HAC login form before it was added; add new ones the same way.
+- `src/constants/theme.ts` defines `THEMES`: each theme has a light and a dark palette with the same keys. `useTheme()` resolves the user's theme plus appearance (System / Light / Dark); Midnight is always dark.
 
 Schema changes: bump `SCHEMA_VERSION` and add the migration step in `migrate()`.
 

@@ -1,24 +1,28 @@
 import * as LocalAuthentication from 'expo-local-authentication';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { runBackgroundSyncForTesting } from '@/background/task';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Divider, ListRow, NumberField, Screen, SectionHeader, ToggleRow, toNumber } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
+import { Button, Card, Divider, ListRow, NumberField, Screen, SectionHeader, Segmented, ToggleRow, toNumber } from '@/components/ui';
+import { Spacing, THEMES, themeById } from '@/constants/theme';
 import { useSession } from '@/data/session';
 import { GPA_PRESETS } from '@/grades/gpa';
 import { SEMESTER_PRESETS } from '@/grades/semester';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { semesterWeightsFor, useSettings, useSettingsStore } from '@/settings/settings';
+import { accountLabel } from '@/storage/accounts';
 import { requestNotificationPermission } from '@/sync/notifications';
 
-/** Settings: account, GPA scale, semester formula, notifications, background checks, Face ID. */
+/** Settings: theme, accounts, GPA scale, semester formula, notifications, background checks, Face ID. */
 export default function SettingsScreen() {
   const theme = useTheme();
   const settings = useSettings();
   const update = useSettingsStore((s) => s.update);
-  const { baseUrl, username, signOut } = useSession();
+  const scheme = useColorScheme();
+  const { accounts, activeId, removeAccount } = useSession();
 
   const weights = semesterWeightsFor(settings);
   const [custom, setCustom] = useState({
@@ -37,19 +41,82 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <SectionHeader title="Account" />
+      <SectionHeader title="Theme" />
       <Card>
-        <ListRow title={username ?? ''} subtitle={baseUrl ?? ''} />
-        <Button
-          title="Sign out"
-          variant="danger"
-          onPress={() =>
-            Alert.alert('Sign out?', 'This removes your HAC login and all saved grade history from this phone.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: () => void signOut() },
-            ])
-          }
+        <View style={styles.swatches}>
+          {THEMES.map((t) => {
+            const selected = settings.themeId === t.id;
+            const palette = t[scheme];
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => void update({ themeId: t.id })}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${t.name} theme`}
+                style={styles.swatch}>
+                <View
+                  style={[
+                    styles.swatchCircle,
+                    { backgroundColor: palette.background, borderColor: selected ? theme.text : theme.border },
+                  ]}>
+                  <View style={[styles.swatchDot, { backgroundColor: palette.tint }]} />
+                </View>
+                <ThemedText type="small" style={selected ? { color: theme.tint, fontWeight: '700' } : undefined}>
+                  {t.name}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Segmented
+          options={[
+            { value: 'system', label: 'System' },
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+          ]}
+          value={settings.appearance}
+          onChange={(appearance) => void update({ appearance })}
         />
+        {themeById(settings.themeId).forceScheme ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {themeById(settings.themeId).name} is always dark.
+          </ThemedText>
+        ) : null}
+      </Card>
+
+      <SectionHeader title="Accounts" />
+      <Card>
+        {accounts.map((a, i) => (
+          <View key={a.id}>
+            {i > 0 ? <Divider /> : null}
+            <ListRow
+              title={`${accountLabel(a)}${a.id === activeId ? ' (active)' : ''}`}
+              subtitle={`${a.districtName ?? new URL(a.baseUrl).host} · ${a.username}`}
+              right={
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${accountLabel(a)}`}
+                  hitSlop={8}
+                  onPress={() =>
+                    Alert.alert(
+                      `Remove ${accountLabel(a)}?`,
+                      'This signs out of the account and deletes its saved grades and history from this phone.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Remove', style: 'destructive', onPress: () => void removeAccount(a.id) },
+                      ],
+                    )
+                  }>
+                  <ThemedText type="small" style={{ color: theme.danger }}>
+                    Remove
+                  </ThemedText>
+                </Pressable>
+              }
+            />
+          </View>
+        ))}
+        <Button title="Add account" variant="secondary" onPress={() => router.push('/add-account')} />
       </Card>
 
       <SectionHeader title="GPA scale" />
@@ -172,6 +239,10 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   option: { paddingVertical: Spacing.two, minHeight: 44, justifyContent: 'center' },
+  swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three },
+  swatch: { alignItems: 'center', gap: Spacing.one, width: 72 },
+  swatchCircle: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  swatchDot: { width: 24, height: 24, borderRadius: 12 },
   row: { flexDirection: 'row', gap: Spacing.two },
   flex: { flex: 1 },
 });

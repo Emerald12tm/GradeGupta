@@ -14,7 +14,7 @@ import {
 import { cancelReminder, scheduleReminder } from '@/sync/notifications';
 import { syncGrades, type SyncResult } from '@/sync/sync';
 
-import { getClient } from './session';
+import { getClient, rememberStudentName, useSession } from './session';
 
 /**
  * React Query hooks: the only way screens load data.
@@ -59,9 +59,16 @@ async function loadGrades(markingPeriod?: string): Promise<GradesData> {
   }
 }
 
+/**
+ * Every query key starts with the active account id, so switching accounts shows that
+ * account's cached data (or loads it) instead of the previous student's.
+ */
+const useAccountId = () => useSession((s) => s.activeId);
+
 /** Classes and assignments for a marking period (current when omitted). */
 export function useGrades(markingPeriod?: string) {
-  return useQuery({ queryKey: ['grades', markingPeriod ?? CURRENT], queryFn: () => loadGrades(markingPeriod) });
+  const account = useAccountId();
+  return useQuery({ queryKey: [account, 'grades', markingPeriod ?? CURRENT], queryFn: () => loadGrades(markingPeriod) });
 }
 
 /** One course from `useGrades`, by section code. */
@@ -72,24 +79,48 @@ export function useCourse(courseId: string, markingPeriod?: string) {
 
 const HOUR = 60 * 60_000;
 
-export const useSchedule = () => useQuery({ queryKey: ['schedule'], queryFn: () => getClient().getSchedule(), staleTime: 12 * HOUR });
-export const useTranscript = () => useQuery({ queryKey: ['transcript'], queryFn: () => getClient().getTranscript(), staleTime: 12 * HOUR });
-export const useReportCard = () => useQuery({ queryKey: ['reportCard'], queryFn: () => getClient().getReportCard(), staleTime: HOUR });
-export const useProgressReport = () => useQuery({ queryKey: ['progress'], queryFn: () => getClient().getProgressReport(), staleTime: HOUR });
-export const useAttendance = () => useQuery({ queryKey: ['attendance'], queryFn: () => getClient().getAttendance(), staleTime: HOUR });
-export const useStudentInfo = () => useQuery({ queryKey: ['student'], queryFn: () => getClient().getStudentInfo(), staleTime: 24 * HOUR });
+/** A HAC page loaded through the active account's client. */
+function useHacPage<T>(name: string, load: () => Promise<T>, staleTime: number) {
+  const account = useAccountId();
+  return useQuery({ queryKey: [account, name], queryFn: load, staleTime });
+}
 
-export const useCourseHistory = (courseId?: string) =>
-  useQuery({ queryKey: ['history', courseId ?? 'all'], queryFn: () => getCourseHistory(courseId), staleTime: 0 });
-export const useGpaHistory = () => useQuery({ queryKey: ['gpaHistory'], queryFn: getGpaHistory, staleTime: 0 });
+export const useSchedule = () => useHacPage('schedule', () => getClient().getSchedule(), 12 * HOUR);
+export const useTranscript = () => useHacPage('transcript', () => getClient().getTranscript(), 12 * HOUR);
+export const useReportCard = () => useHacPage('reportCard', () => getClient().getReportCard(), HOUR);
+export const useProgressReport = () => useHacPage('progress', () => getClient().getProgressReport(), HOUR);
+export const useAttendance = () => useHacPage('attendance', () => getClient().getAttendance(), HOUR);
+export const useStudentInfo = () =>
+  useHacPage(
+    'student',
+    async () => {
+      const info = await getClient().getStudentInfo();
+      void rememberStudentName(info.name);
+      return info;
+    },
+    24 * HOUR,
+  );
+
+export const useCourseHistory = (courseId?: string) => {
+  const account = useAccountId();
+  return useQuery({ queryKey: [account, 'history', courseId ?? 'all'], queryFn: () => getCourseHistory(courseId), staleTime: 0 });
+};
+export const useGpaHistory = () => {
+  const account = useAccountId();
+  return useQuery({ queryKey: [account, 'gpaHistory'], queryFn: () => getGpaHistory(), staleTime: 0 });
+};
 
 // ---------- planner ----------
 
-export const useTodos = () => useQuery({ queryKey: ['todos'], queryFn: listTodos, staleTime: Infinity });
+export const useTodos = () => {
+  const account = useAccountId();
+  return useQuery({ queryKey: [account, 'todos'], queryFn: () => listTodos(), staleTime: Infinity });
+};
 
 export function useTodoActions() {
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: ['todos'] });
+  const account = useAccountId();
+  const refresh = () => qc.invalidateQueries({ queryKey: [account, 'todos'] });
 
   const add = useMutation({
     mutationFn: async (input: { title: string; due: Date | null; courseId: string | null }) => {

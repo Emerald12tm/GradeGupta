@@ -1,64 +1,119 @@
 import { create } from 'zustand';
 
+import { districtForUrl } from '@/config/districts';
 import { HacClient, HacError, type HacCredentials } from '@/hac/client';
-import { clearCredentials, loadCredentials, saveCredentials } from '@/storage/credentials';
-import { clearAllData } from '@/storage/db';
+import {
+  listAccounts,
+  loadCredentials,
+  removeAccount as removeSavedAccount,
+  saveAccount,
+  setActiveAccountId,
+  updateAccount,
+  type Account,
+} from '@/storage/accounts';
+import { deleteAccountData, setActiveAccount } from '@/storage/db';
 
 /**
- * Sign-in state and the shared HAC client.
+ * Saved accounts, the active one, and its HAC client.
  *
  * `status` drives navigation: 'loading' while we read the secure store at launch,
- * 'signedOut' shows the login screen, 'signedIn' shows the app.
+ * 'signedOut' (no accounts) shows the login screen, 'signedIn' shows the app.
+ *
+ * Only the active account has a client. Switching accounts always creates a fresh client,
+ * which signs in again: every account shares the phone's cookie store, so a client kept
+ * from before could otherwise be looking at another student's session.
  */
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
 
 interface SessionState {
   status: Status;
-  /** District origin, shown in Settings. */
-  baseUrl: string | null;
-  username: string | null;
+  accounts: Account[];
+  activeId: string | null;
   restore: () => Promise<void>;
-  signIn: (credentials: HacCredentials) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** Signs in to HAC, saves the account and makes it active. Throws HacError on failure. */
+  addAccount: (credentials: HacCredentials & { districtName?: string }) => Promise<void>;
+  switchAccount: (id: string) => Promise<void>;
+  /** Signs out of one account and deletes its saved grades. */
+  removeAccount: (id: string) => Promise<void>;
 }
 
 let client: HacClient | null = null;
 
-/** The signed-in client. Throws if called while signed out. */
+/** The active account's client. Throws if no account is active. */
 export function getClient(): HacClient {
   if (!client) throw new HacError('bad-credentials', 'Not signed in');
   return client;
 }
 
-export const useSession = create<SessionState>((set) => ({
+/** The active account, for labels. */
+export const useActiveAccount = (): Account | undefined =>
+  useSession((s) => s.accounts.find((a) => a.id === s.activeId));
+
+async function activate(id: string | null): Promise<void> {
+  setActiveAccount(id);
+  client = null;
+  if (!id) return;
+  const credentials = await loadCredentials(id);
+  if (credentials) client = new HacClient(credentials);
+}
+
+export const useSession = create<SessionState>((set, get) => ({
   status: 'loading',
-  baseUrl: null,
-  username: null,
+  accounts: [],
+  activeId: null,
 
   restore: async () => {
-    const saved = await loadCredentials();
-    if (!saved) {
-      set({ status: 'signedOut' });
-      return;
-    }
-    client = new HacClient(saved);
-    set({ status: 'signedIn', baseUrl: client.baseUrl, username: saved.username });
+    const { accounts, activeId } = await listAccounts();
+    const id = activeId ?? accounts[0]?.id ?? null;
+    await activate(id);
+    set({ accounts, activeId: id, status: id && client ? 'signedIn' : 'signedOut' });
   },
 
-  signIn: async (credentials) => {
+  addAccount: async ({ districtName, ...credentials }) => {
     const candidate = new HacClient(credentials);
-    await candidate.login(); // throws HacError with a user-facing message on failure
-    await saveCredentials({ ...credentials, baseUrl: candidate.baseUrl });
+    await candidate.login();
+    const studentName = await candidate
+      .getStudentInfo()
+      .then((info) => info.name)
+      .catch(() => undefined);
+
+    const account = await saveAccount(
+      {
+        baseUrl: candidate.baseUrl,
+        username: credentials.username,
+        districtName: districtName ?? districtForUrl(candidate.baseUrl)?.name,
+        studentName,
+      },
+      credentials.password,
+    );
+    setActiveAccount(account.id);
     client = candidate;
-    set({ status: 'signedIn', baseUrl: candidate.baseUrl, username: credentials.username });
+    const { accounts } = await listAccounts();
+    set({ accounts, activeId: account.id, status: 'signedIn' });
   },
 
-  signOut: async () => {
-    await client?.logout();
-    client = null;
-    await clearCredentials();
-    await clearAllData();
-    set({ status: 'signedOut', baseUrl: null, username: null });
+  switchAccount: async (id) => {
+    if (id === get().activeId) return;
+    await setActiveAccountId(id);
+    await activate(id);
+    set({ activeId: id });
+  },
+
+  removeAccount: async (id) => {
+    if (id === get().activeId) await client?.logout();
+    const { accounts, activeId } = await removeSavedAccount(id);
+    await deleteAccountData(id);
+    await activate(activeId);
+    set({ accounts, activeId, status: activeId ? 'signedIn' : 'signedOut' });
   },
 }));
+
+/** Saves a better display name for the active account once HAC tells us the student's name. */
+export async function rememberStudentName(name: string | undefined): Promise<void> {
+  const { activeId, accounts } = useSession.getState();
+  const account = accounts.find((a) => a.id === activeId);
+  if (!activeId || !name || account?.studentName === name) return;
+  await updateAccount(activeId, { studentName: name });
+  useSession.setState({ accounts: accounts.map((a) => (a.id === activeId ? { ...a, studentName: name } : a)) });
+}

@@ -26,7 +26,18 @@ export interface AverageResult {
   categories: CategoryResult[];
 }
 
-export const isGraded = (a: Assignment): boolean => a.score !== null && a.totalPoints > 0;
+/**
+ * Counts toward averages: has a score and a non-negative point value. Extra credit
+ * (worth 0 points) counts too: it adds earned points without adding possible points.
+ */
+export const isGraded = (a: Assignment): boolean => a.score !== null && a.totalPoints >= 0;
+
+/** Display text for a score: "92/100", "+2.5 EC" for extra credit, "—" if ungraded. */
+export function formatScore(a: Pick<Assignment, 'score' | 'totalPoints'>): string {
+  if (a.score === null) return '—';
+  const n = (x: number) => String(Math.round(x * 100) / 100);
+  return a.totalPoints === 0 ? `+${n(a.score)} EC` : `${n(a.score)}/${n(a.totalPoints)}`;
+}
 
 /** Earned and possible points for one category, honoring HAC's per-assignment weight. */
 export function categoryTotals(assignments: Assignment[], category: string) {

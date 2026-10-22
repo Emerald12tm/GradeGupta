@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { DEFAULT_THEME_ID } from '@/constants/theme';
 import { DEFAULT_GPA_PRESET, GPA_PRESETS, type GpaScale } from '@/grades/gpa';
 import { SEMESTER_PRESETS, type SemesterWeights } from '@/grades/semester';
 import type { Course, CourseLevel } from '@/hac/types';
@@ -42,9 +43,15 @@ export interface Settings {
   biometricLock: boolean;
   /** Keyed by course name (stable across marking periods, unlike section codes). */
   courseOverrides: Record<string, CourseOverride>;
+  /** Color theme id from `THEMES` (src/constants/theme.ts). */
+  themeId: string;
+  /** Light/dark choice. 'system' follows the phone. */
+  appearance: 'system' | 'light' | 'dark';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  themeId: DEFAULT_THEME_ID,
+  appearance: 'system',
   gpaPreset: DEFAULT_GPA_PRESET,
   semesterPreset: SEMESTER_PRESETS[0].id,
   notifyGrades: true,

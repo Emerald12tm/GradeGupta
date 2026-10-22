@@ -3,7 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 
 import { HacClient } from '@/hac/client';
 import { loadSettings } from '@/settings/settings';
-import { loadCredentials } from '@/storage/credentials';
+import { accountLabel, listAccounts, loadCredentials } from '@/storage/accounts';
 import { syncGrades } from '@/sync/sync';
 
 /**
@@ -22,15 +22,26 @@ export const SYNC_TASK = 'gradegupta-background-sync';
 const MINIMUM_INTERVAL_MINUTES = 30;
 
 TaskManager.defineTask(SYNC_TASK, async () => {
-  try {
-    const settings = await loadSettings();
-    const credentials = await loadCredentials();
-    if (!settings.backgroundSync || !credentials) return BackgroundTask.BackgroundTaskResult.Success;
-    await syncGrades(new HacClient(credentials), { notify: true });
-    return BackgroundTask.BackgroundTaskResult.Success;
-  } catch {
-    return BackgroundTask.BackgroundTaskResult.Failed;
+  const settings = await loadSettings().catch(() => null);
+  if (!settings?.backgroundSync) return BackgroundTask.BackgroundTaskResult.Success;
+
+  // Check every saved account; one failing (wrong password, district down) doesn't stop the rest.
+  const { accounts } = await listAccounts();
+  let failed = false;
+  for (const account of accounts) {
+    try {
+      const credentials = await loadCredentials(account.id);
+      if (!credentials) continue;
+      await syncGrades(new HacClient(credentials), {
+        notify: true,
+        accountId: account.id,
+        label: accounts.length > 1 ? accountLabel(account) : undefined,
+      });
+    } catch {
+      failed = true;
+    }
   }
+  return failed ? BackgroundTask.BackgroundTaskResult.Failed : BackgroundTask.BackgroundTaskResult.Success;
 });
 
 /** Turns background checks on. Safe to call repeatedly. */

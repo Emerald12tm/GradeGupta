@@ -10,6 +10,7 @@ import {
   Card,
   Divider,
   ErrorState,
+  GradeBadge,
   ListRow,
   LoadingState,
   NumberField,
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui';
 import { gradeColor, Spacing } from '@/constants/theme';
 import { useCourse, useCourseHistory } from '@/data/queries';
-import { categoryImpact, formatAverage, letterGrade } from '@/grades/average';
+import { categoryImpact, formatAverage, formatScore } from '@/grades/average';
 import { averageMismatch } from '@/grades/solver';
 import { requiredAssignmentScore } from '@/grades/target';
 import { emptyEdits, hasEdits, whatIf, type WhatIfEdits } from '@/grades/whatif';
@@ -61,22 +62,22 @@ function ClassDetail({ course, period }: { course: Course; period?: string }) {
 
       <Card>
         <View style={styles.summary}>
-          <View style={styles.flex}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {whatIfOn && hasEdits(edits) ? 'What-if average' : 'Average'}
+          <GradeBadge average={shown} size="large" />
+          <View style={[styles.flex, styles.right]}>
+            <ThemedText type="caption" themeColor="textSecondary">
+              {whatIfOn && hasEdits(edits) ? 'What-if average' : 'Class average'}
             </ThemedText>
-            <ThemedText type="title" style={{ color: gradeColor(shown, theme) }}>
-              {formatAverage(shown)}
-            </ThemedText>
-          </View>
-          <View style={styles.right}>
-            <ThemedText type="subtitle">{letterGrade(shown)}</ThemedText>
             {whatIfOn && result.delta !== null && hasEdits(edits) ? (
-              <ThemedText style={{ color: result.delta >= 0 ? theme.success : theme.danger }}>
-                {result.delta >= 0 ? '+' : ''}
-                {result.delta.toFixed(2)}
+              <Pill
+                icon={result.delta >= 0 ? 'trending-up' : 'trending-down'}
+                label={`${result.delta >= 0 ? '+' : ''}${result.delta.toFixed(2)} vs HAC`}
+                color={result.delta >= 0 ? theme.success : theme.danger}
+              />
+            ) : (
+              <ThemedText type="small" themeColor="textSecondary">
+                {course.assignments.filter((a) => a.score !== null).length} graded assignments
               </ThemedText>
-            ) : null}
+            )}
           </View>
         </View>
         {history.length > 1 ? <Sparkline values={history.map((h) => h.average)} reference={90} /> : null}
@@ -217,8 +218,9 @@ function AssignmentRow({
           {subtitle}
         </ThemedText>
         <View style={styles.pills}>
-          {a.isMissing ? <Pill label="Missing" color={theme.danger} /> : null}
+          {a.isMissing ? <Pill icon="alert-circle" label="Missing" color={theme.danger} /> : null}
           {a.score === null ? <Pill label="Not graded" /> : null}
+          {a.totalPoints === 0 && a.score !== null ? <Pill icon="add-circle" label="Extra credit" color={theme.success} /> : null}
         </View>
       </View>
       {editable ? (
@@ -233,11 +235,13 @@ function AssignmentRow({
             placeholder={a.score === null ? '—' : String(a.score)}
             placeholderTextColor={theme.textSecondary}
             keyboardType="decimal-pad"
-            accessibilityLabel={`What-if score for ${a.name}, out of ${a.totalPoints}`}
+            accessibilityLabel={
+              a.totalPoints === 0 ? `What-if extra credit points for ${a.name}` : `What-if score for ${a.name}, out of ${a.totalPoints}`
+            }
             style={[styles.scoreInput, { color: theme.text, borderColor: theme.border }]}
           />
           <ThemedText type="small" themeColor="textSecondary">
-            / {a.totalPoints}
+            {a.totalPoints === 0 ? 'bonus pts' : `/ ${a.totalPoints}`}
           </ThemedText>
           <Pressable onPress={onToggleDrop} accessibilityRole="button">
             <ThemedText type="small" style={{ color: theme.tint }}>
@@ -247,8 +251,8 @@ function AssignmentRow({
         </View>
       ) : (
         <View style={styles.right}>
-          <ThemedText style={{ color: gradeColor(pct, theme) }}>
-            {a.score === null ? '—' : `${a.score}/${a.totalPoints}`}
+          <ThemedText type="smallBold" style={{ color: a.totalPoints === 0 && a.score !== null ? theme.success : gradeColor(pct, theme) }}>
+            {formatScore(a)}
           </ThemedText>
           {pct !== null && a.totalPoints !== 100 ? (
             <ThemedText type="small" themeColor="textSecondary">
@@ -281,12 +285,13 @@ function AddHypothetical({ course, onAdd }: { course: Course; onAdd: (a: Assignm
           <NumberField label="Score" value={score} onChangeText={setScore} placeholder="85" />
         </View>
         <View style={styles.flex}>
-          <NumberField label="Out of" value={total} onChangeText={setTotal} />
+          <NumberField label="Out of" value={total} onChangeText={setTotal} hint="0 = extra credit" />
         </View>
       </View>
       <Button
         title="Add"
-        disabled={s === null || !t}
+        icon="add"
+        disabled={s === null || t === null}
         onPress={() => {
           onAdd({ id: `mock-${Date.now()}`, name: name || 'Hypothetical', category, score: s, totalPoints: t ?? 100, isMock: true });
           setScore('');
@@ -373,7 +378,7 @@ function CourseGpaSettings({ course }: { course: Course }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  summary: { flexDirection: 'row', alignItems: 'flex-end' },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   right: { alignItems: 'flex-end' },
   assignment: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.two },
   dropped: { opacity: 0.4 },

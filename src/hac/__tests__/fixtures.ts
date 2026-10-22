@@ -74,7 +74,7 @@ export const assignmentsPage = (selectedRun = '1-2026', physicsTest = '80.00') =
   <div class="AssignmentClass">
     <div class="sg-header sg-header-square">
       <a class="sg-header-heading" href="#">1234 - 2    Algebra II H</a>
-      <span class="sg-header-heading sg-right">Student Grades 35.00%</span>
+      <span class="sg-header-heading sg-right">Student Grades 36.25%</span>
     </div>
     <div class="sg-content-grid">
       <table id="plnMain_rptAssigmnetsByCourse_dgCourseAssignments_1" class="sg-asp-table">
@@ -82,6 +82,7 @@ export const assignmentsPage = (selectedRun = '1-2026', physicsTest = '80.00') =
         ${row(['09/03/2026', '09/01/2026', '<a href="#">Quiz</a>', 'Daily', '70.00', '100.00', '1.00', '', '', '', ''])}
         ${row(['09/03/2026', '09/01/2026', '<a href="#">Quiz</a>', 'Daily', 'M', '100.00', '1.00', '', '', '', ''])}
         ${row(['09/04/2026', '09/01/2026', '<a href="#">Quiz 3</a>', 'Daily', 'X', '100.00', '1.00', '', '', '', ''])}
+        ${row(['09/05/2026', '09/05/2026', '<a href="#">Bonus question</a>', 'Daily', '2.50', '', '1.00', '', '', '', ''])}
       </table>
       <table id="plnMain_rptAssigmnetsByCourse_dgCourseCategories_1" class="sg-asp-table">
         ${header(CATEGORY_HEADERS)}

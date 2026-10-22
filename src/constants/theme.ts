@@ -1,43 +1,155 @@
 /**
- * Design tokens: colors for light and dark mode, fonts and spacing.
- * Read colors through `useTheme()` so screens follow the system appearance.
+ * Design tokens: color themes (each with a light and dark palette), fonts and spacing.
+ *
+ * Screens read colors through `useTheme()`, which picks the user's theme (Settings →
+ * Theme) and appearance (System / Light / Dark). Every palette has the same keys, so a
+ * component styled with `theme.tint` works in every theme.
  */
 
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#F7F7F9',
-    backgroundElement: '#FFFFFF',
-    backgroundSelected: '#E6E8EE',
-    textSecondary: '#60646C',
-    border: '#E2E4EA',
-    tint: '#3D5AFE',
-    onTint: '#FFFFFF',
-    success: '#1F9D55',
-    warning: '#C27803',
-    danger: '#D93025',
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#0B0C0E',
-    backgroundElement: '#17181B',
-    backgroundSelected: '#26282D',
-    textSecondary: '#A0A4AB',
-    border: '#2A2C31',
-    tint: '#8C9EFF',
-    onTint: '#0B0C0E',
-    success: '#4CC38A',
-    warning: '#F0B429',
-    danger: '#FF6B5E',
-  },
-} as const;
+export interface Palette {
+  text: string;
+  textSecondary: string;
+  background: string;
+  /** Cards, inputs, tab bar. */
+  backgroundElement: string;
+  /** Pressed/selected surfaces, segmented control track. */
+  backgroundSelected: string;
+  border: string;
+  /** Accent: buttons, links, highlights. */
+  tint: string;
+  /** Text/icons drawn on top of `tint`. */
+  onTint: string;
+  success: string;
+  warning: string;
+  danger: string;
+}
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = keyof Palette;
+
+const BASE_LIGHT: Palette = {
+  text: '#11181C',
+  textSecondary: '#60646C',
+  background: '#F7F7F9',
+  backgroundElement: '#FFFFFF',
+  backgroundSelected: '#E6E8EE',
+  border: '#E2E4EA',
+  tint: '#3D5AFE',
+  onTint: '#FFFFFF',
+  success: '#1F9D55',
+  warning: '#C27803',
+  danger: '#D93025',
+};
+
+const BASE_DARK: Palette = {
+  text: '#ECEDEE',
+  textSecondary: '#A0A4AB',
+  background: '#0B0C0E',
+  backgroundElement: '#17181B',
+  backgroundSelected: '#26282D',
+  border: '#2A2C31',
+  tint: '#8C9EFF',
+  onTint: '#0B0C0E',
+  success: '#4CC38A',
+  warning: '#F0B429',
+  danger: '#FF6B5E',
+};
+
+export interface AppTheme {
+  id: string;
+  name: string;
+  light: Palette;
+  dark: Palette;
+  /** Themes that only make sense one way (Midnight) ignore the appearance setting. */
+  forceScheme?: 'light' | 'dark';
+}
+
+const theme = (id: string, name: string, light: Partial<Palette>, dark: Partial<Palette>, forceScheme?: 'dark'): AppTheme => ({
+  id,
+  name,
+  light: { ...BASE_LIGHT, ...light },
+  dark: { ...BASE_DARK, ...dark },
+  forceScheme,
+});
+
+const midnight: Partial<Palette> = {
+  background: '#0A0E1A',
+  backgroundElement: '#111729',
+  backgroundSelected: '#1B2340',
+  border: '#222B4A',
+  tint: '#7AA2F7',
+  onTint: '#0A0E1A',
+};
+
+export const THEMES: AppTheme[] = [
+  theme('classic', 'Classic', {}, {}),
+  theme(
+    'green',
+    'Green',
+    { tint: '#1E8E4E', background: '#F4F8F5', backgroundSelected: '#E2EFE6', border: '#D9E6DD' },
+    { tint: '#4ADE80', background: '#08100B', backgroundElement: '#111B15', backgroundSelected: '#1C2B21', border: '#22332A' },
+  ),
+  theme(
+    'ocean',
+    'Ocean',
+    { tint: '#0077B6', background: '#F3F8FB', backgroundSelected: '#DDEEF7', border: '#D3E4EE' },
+    { tint: '#4CC9F0', background: '#06111A', backgroundElement: '#0D1C28', backgroundSelected: '#16293A', border: '#1C3245' },
+  ),
+  theme(
+    'sunset',
+    'Sunset',
+    { tint: '#E8590C', background: '#FFF7F2', backgroundSelected: '#FBE6D9', border: '#F2DCCD' },
+    { tint: '#FF922B', background: '#140B07', backgroundElement: '#1F130D', backgroundSelected: '#2E1D14', border: '#38241A' },
+  ),
+  theme(
+    'amethyst',
+    'Amethyst',
+    { tint: '#7B3FE4', background: '#F8F5FD', backgroundSelected: '#EBE2FA', border: '#E2D8F3' },
+    { tint: '#B197FC', background: '#0E0A16', backgroundElement: '#181224', backgroundSelected: '#241B36', border: '#2D2241' },
+  ),
+  theme(
+    'ruby',
+    'Ruby',
+    { tint: '#C81E3A', background: '#FCF4F5', backgroundSelected: '#F6DDE1', border: '#EFD3D8' },
+    { tint: '#FF6B81', background: '#140709', backgroundElement: '#1F0E12', backgroundSelected: '#2E161B', border: '#381C22' },
+  ),
+  theme(
+    'lemon',
+    'Lemon',
+    { tint: '#9A7D00', onTint: '#1A1600', background: '#FFFDF0', backgroundSelected: '#F7F0C8', border: '#EEE6BF' },
+    { tint: '#FFE066', onTint: '#1A1600', background: '#12110A', backgroundElement: '#1C1A10', backgroundSelected: '#2A2717', border: '#333020' },
+  ),
+  theme(
+    'magenta',
+    'Magenta',
+    { tint: '#C2188F', background: '#FDF4FB', backgroundSelected: '#F7DDF0', border: '#EFD2E7' },
+    { tint: '#FF7AD9', background: '#14070F', backgroundElement: '#200E19', backgroundSelected: '#2F1626', border: '#3A1C2F' },
+  ),
+  theme(
+    'marine',
+    'Marine',
+    { tint: '#0F766E', background: '#F2F8F7', backgroundSelected: '#D9EEEB', border: '#D0E4E1' },
+    { tint: '#2DD4BF', background: '#061210', backgroundElement: '#0C1C19', backgroundSelected: '#142B27', border: '#1A3530' },
+  ),
+  theme('midnight', 'Midnight', midnight, midnight, 'dark'),
+  theme(
+    'terracotta',
+    'Terracotta',
+    { tint: '#B4502F', background: '#FBF5F2', backgroundSelected: '#F3E1D9', border: '#EAD7CE' },
+    { tint: '#E9896A', background: '#130C09', backgroundElement: '#1E1410', backgroundSelected: '#2C1E17', border: '#36251D' },
+  ),
+];
+
+export const DEFAULT_THEME_ID = 'classic';
+
+export const themeById = (id: string): AppTheme => THEMES.find((t) => t.id === id) ?? THEMES[0];
+
+/** The default theme's palettes, for code outside React that just needs neutral colors. */
+export const Colors = { light: THEMES[0].light, dark: THEMES[0].dark };
 
 /** Color for a percent grade: green A, neutral B, amber C, red failing. */
-export function gradeColor(average: number | null, theme: (typeof Colors)['light' | 'dark']): string {
+export function gradeColor(average: number | null, theme: Palette): string {
   if (average === null) return theme.textSecondary;
   if (average >= 90) return theme.success;
   if (average >= 80) return theme.text;

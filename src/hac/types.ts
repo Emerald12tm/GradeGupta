@@ -25,6 +25,11 @@ export interface Assignment {
   weight?: number;
   /** HAC marked the assignment missing (scored as 0). */
   isMissing?: boolean;
+  /**
+   * Extra credit: points earned on an assignment worth 0 points (HAC shows the total as
+   * 0 or blank). Adds to the category's earned points without adding possible points.
+   */
+  isExtraCredit?: boolean;
   /** User-created "what if" grade that doesn't exist in HAC. */
   isMock?: boolean;
 }

@@ -1,20 +1,20 @@
-import { NativeTabs } from 'expo-router/native-tabs';
-import { useColorScheme } from 'react-native';
+// SDK 57 ships native tabs under `unstable-native-tabs` (renamed to `native-tabs` in SDK 58).
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Bottom tab bar using the platform's native tabs. Icons are SF Symbols on iOS and
- * Material Symbols on Android, so no image assets are needed.
+ * Bottom tab bar using the platform's native tabs, colored by the current theme. Icons are
+ * SF Symbols on iOS and Material Symbols on Android, so no image assets are needed.
  */
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const colors = useTheme();
 
   return (
     <NativeTabs
       backgroundColor={colors.backgroundElement}
       indicatorColor={colors.backgroundSelected}
+      tintColor={colors.tint}
       labelStyle={{ selected: { color: colors.tint } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Grades</NativeTabs.Trigger.Label>

@@ -82,16 +82,23 @@ function parseCourse(box: HTMLElement): Course {
     const n = seen.get(baseId) ?? 0;
     seen.set(baseId, n + 1);
 
+    const score = isMissing ? 0 : excused ? null : parseNumber(scoreText);
+    const total = parseNumber(pick(v, 'Total Points', /total p/i));
+    // Extra credit: points earned on something worth 0 (HAC shows 0.00 or leaves it blank).
+    // Defaulting a blank total to 100 would turn "+2.5" into a failing 2.5/100.
+    const isExtraCredit = score !== null && score > 0 && (total === null || total === 0);
+
     return {
       id: n === 0 ? baseId : `${baseId}#${n}`,
       name: assignmentName || text,
       category: pick(v, 'Category') ?? '',
       dateDue,
       dateAssigned: toIsoDate(pick(v, 'Date Assigned', /assigned/i)),
-      score: isMissing ? 0 : excused ? null : parseNumber(scoreText),
-      totalPoints: parseNumber(pick(v, 'Total Points', /total p/i)) ?? 100,
+      score,
+      totalPoints: isExtraCredit ? 0 : (total ?? 100),
       weight: parseNumber(pick(v, 'Weight')) ?? 1,
       isMissing,
+      isExtraCredit,
     };
   });
 

@@ -4,7 +4,17 @@ import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  type?:
+    | 'default'
+    | 'largeTitle'
+    | 'title'
+    | 'small'
+    | 'smallBold'
+    | 'subtitle'
+    | 'caption'
+    | 'link'
+    | 'linkPrimary'
+    | 'code';
   themeColor?: ThemeColor;
 };
 
@@ -30,15 +40,35 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: 500,
   },
+  /** Screen titles on tab screens. */
+  largeTitle: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: 800,
+    letterSpacing: -0.6,
+  },
+  /** Big numbers (averages, GPA). Tabular digits so values don't jump as they change. */
   title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
+    fontSize: 40,
+    lineHeight: 46,
+    fontWeight: 700,
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: 700,
+    letterSpacing: -0.4,
+    fontVariant: ['tabular-nums'],
+  },
+  /** Section labels and small headings. */
+  caption: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: 700,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   link: {
     lineHeight: 30,

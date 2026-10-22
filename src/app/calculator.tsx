@@ -86,6 +86,11 @@ export default function CalculatorScreen() {
           marking={params.period || undefined}
         />
       ) : null}
+
+      <ThemedText type="small" themeColor="textSecondary" style={styles.disclaimer}>
+        Results are estimates based on the formula above and the numbers you entered. Your district’s formula or
+        rounding may differ. Confirm important grades with your teacher.
+      </ThemedText>
     </Screen>
   );
 }
@@ -575,6 +580,7 @@ function HiddenFromSemester({
 }
 
 const styles = StyleSheet.create({
+  disclaimer: { textAlign: 'center', paddingHorizontal: Spacing.two },
   flex: { flex: 1 },
   periodRow: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
 });

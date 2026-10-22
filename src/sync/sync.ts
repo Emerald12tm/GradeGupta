@@ -27,30 +27,37 @@ export interface SyncOptions {
   markingPeriod?: string;
   /** Send local notifications for changes (background syncs). */
   notify?: boolean;
+  /** Account whose database to use. Defaults to the active account. */
+  accountId?: string;
+  /** Prefix for notification titles, e.g. the student's name when several accounts exist. */
+  label?: string;
 }
 
 export async function syncGrades(client: HacClient, options: SyncOptions = {}): Promise<SyncResult> {
+  const { accountId } = options;
   const settings = await loadSettings();
   const page = await client.getAssignments(options.markingPeriod);
   page.courses = applyCourseOverrides(page.courses, settings.courseOverrides);
 
   const markingPeriod = page.markingPeriods.find((p) => p.selected)?.value ?? 'current';
   const syncedAt = new Date().toISOString();
-  const previous = await getSnapshot(markingPeriod);
+  const previous = await getSnapshot(markingPeriod, accountId);
   const changes = previous ? diffSnapshots(previous.courses, page.courses) : [];
 
-  await saveSnapshot({ markingPeriod, takenAt: syncedAt, courses: page.courses });
+  await saveSnapshot({ markingPeriod, takenAt: syncedAt, courses: page.courses }, accountId);
 
   if (!options.markingPeriod) {
     // Also saved under 'current' so offline launches can find it without knowing the period key.
-    await saveSnapshot({ markingPeriod: 'current', takenAt: syncedAt, courses: page.courses });
-    await recordCourseHistory(page.courses, syncedAt);
+    await saveSnapshot({ markingPeriod: 'current', takenAt: syncedAt, courses: page.courses }, accountId);
+    await recordCourseHistory(page.courses, syncedAt, accountId);
     const gpa = currentGpa(page.courses, settings);
-    await recordGpa({ takenAt: syncedAt, weighted: gpa.weighted, unweighted: gpa.unweighted });
+    await recordGpa({ takenAt: syncedAt, weighted: gpa.weighted, unweighted: gpa.unweighted }, accountId);
   }
 
   if (options.notify) {
-    await sendNotifications(changes, previous?.courses ?? [], page.courses, settings);
+    for (const m of selectNotifications(changes, previous?.courses ?? [], page.courses, settings)) {
+      await notify(options.label ? `${options.label}: ${m.title}` : m.title, m.body);
+    }
   }
   return { page, changes, syncedAt, markingPeriod };
 }
@@ -100,10 +107,4 @@ export function selectNotifications(
     }
   }
   return messages;
-}
-
-async function sendNotifications(changes: GradeChange[], previous: Course[], current: Course[], settings: Settings) {
-  for (const m of selectNotifications(changes, previous, current, settings)) {
-    await notify(m.title, m.body);
-  }
 }

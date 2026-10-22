@@ -1,4 +1,4 @@
-import { computeAverage } from '@/grades/average';
+import { computeAverage, formatScore } from '@/grades/average';
 
 import { normalizeBaseUrl } from '../endpoints';
 import { parseAssignmentsPage, splitHeading } from '../parsers/assignments';
@@ -14,7 +14,7 @@ describe('assignments page', () => {
   it('reads every course with its code, name, level and average', () => {
     expect(page.courses).toHaveLength(2);
     expect(physics).toMatchObject({ id: '3500 - 1', name: 'AP Physics 1', level: 'ap', reportedAverage: 86 });
-    expect(algebra).toMatchObject({ id: '1234 - 2', name: 'Algebra II H', level: 'honors', reportedAverage: 35 });
+    expect(algebra).toMatchObject({ id: '1234 - 2', name: 'Algebra II H', level: 'honors', reportedAverage: 36.25 });
   });
 
   it('reads category weights without the Total row', () => {
@@ -40,17 +40,23 @@ describe('assignments page', () => {
   });
 
   it('treats M as missing (0) and X as excused (null), with unique ids for duplicates', () => {
-    expect(algebra.assignments.map((a) => [a.score, a.isMissing])).toEqual([
+    expect(algebra.assignments.slice(0, 3).map((a) => [a.score, a.isMissing])).toEqual([
       [70, false],
       [0, true],
       [null, false],
     ]);
-    expect(new Set(algebra.assignments.map((a) => a.id)).size).toBe(3);
+    expect(new Set(algebra.assignments.map((a) => a.id)).size).toBe(4);
+  });
+
+  it('reads extra credit (blank total) as bonus points worth 0, not out of 100', () => {
+    expect(algebra.assignments[3]).toMatchObject({ name: 'Bonus question', score: 2.5, totalPoints: 0, isExtraCredit: true });
+    expect(formatScore(algebra.assignments[3])).toBe('+2.5 EC');
   });
 
   it('recomputes to the same average HAC shows', () => {
     expect(computeAverage(physics.categories, physics.assignments).average).toBeCloseTo(86, 6);
-    expect(computeAverage(algebra.categories, algebra.assignments).average).toBeCloseTo(35, 6);
+    // Daily: (70 + 0 + 2.5 extra credit) / 200 possible = 36.25
+    expect(computeAverage(algebra.categories, algebra.assignments).average).toBeCloseTo(36.25, 6);
   });
 
   it('lists marking periods', () => {
