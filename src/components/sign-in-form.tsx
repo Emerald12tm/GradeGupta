@@ -9,6 +9,7 @@ import { Banner, Button, Card, TextField } from '@/components/ui';
 import { DISCLAIMER } from '@/config/legal';
 import { Spacing } from '@/constants/theme';
 import { useSession } from '@/data/session';
+import { DEMO_CREDENTIALS } from '@/hac/demo';
 import { normalizeBaseUrl } from '@/hac/endpoints';
 import { useTheme } from '@/hooks/use-theme';
 import { requestNotificationPermission } from '@/sync/notifications';
@@ -132,6 +133,14 @@ export function SignInForm({ submitTitle = 'Sign in', onDone }: { submitTitle?: 
       </Pressable>
 
       <Button title={submitTitle} onPress={submit} loading={busy} disabled={!baseUrl || !username || !password || !agreed} />
+      <Button
+        title="Try the demo"
+        variant="secondary"
+        icon="sparkles"
+        onPress={() => {
+          void addAccount({ ...DEMO_CREDENTIALS, districtName: 'Demo (sample grades)' }).then(() => onDone?.());
+        }}
+      />
 
       <ThemedText type="small" themeColor="textSecondary" style={styles.disclaimer}>
         {DISCLAIMER}

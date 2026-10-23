@@ -15,10 +15,17 @@ type Item = { title: string; subtitle: string; href: Href; icon: IconName };
 
 const SECTIONS: { title: string; items: Item[] }[] = [
   {
-    title: 'Calculators',
+    title: 'Plan',
     items: [
+      { title: 'Final exam planner', subtitle: 'Score needed on every final, all at once', href: '/finals', icon: 'school' },
       { title: 'Final exam calculator', subtitle: 'What you need, what you got, hidden grades', href: '/calculator', icon: 'calculator' },
+      { title: 'GPA planner', subtitle: 'See your GPA if you finish with these grades', href: '/gpa-planner', icon: 'trending-up' },
+      { title: 'Compare marking periods', subtitle: 'Every class, MP by MP', href: '/compare', icon: 'git-compare' },
     ],
+  },
+  {
+    title: 'Share',
+    items: [{ title: 'Share grades', subtitle: 'GPA card image or full PDF report', href: '/share-card', icon: 'share-social' }],
   },
   {
     title: 'School',

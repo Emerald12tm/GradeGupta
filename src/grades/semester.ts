@@ -25,10 +25,10 @@ export interface SemesterPreset extends SemesterWeights {
   label: string;
 }
 
-/** Common district formulas. Users can also enter custom weights. */
+/** Common district formulas; the first is the default. Users can also enter custom weights. */
 export const SEMESTER_PRESETS: SemesterPreset[] = [
-  { id: '2x42.5+15', label: '2 grading periods 42.5% each + exam 15%', periods: [0.425, 0.425], exam: 0.15 },
-  { id: '2x40+20', label: '2 grading periods 40% each + exam 20%', periods: [0.4, 0.4], exam: 0.2 },
+  { id: '2x40+20', label: '2 grading periods 40% each + final 20%', periods: [0.4, 0.4], exam: 0.2 },
+  { id: '2x42.5+15', label: '2 grading periods 42.5% each + final 15%', periods: [0.425, 0.425], exam: 0.15 },
   { id: '2x45+10', label: '2 grading periods 45% each + exam 10%', periods: [0.45, 0.45], exam: 0.1 },
   { id: '3x28.33+15', label: '3 six-weeks 28.33% each + exam 15%', periods: [0.85 / 3, 0.85 / 3, 0.85 / 3], exam: 0.15 },
   { id: '3x26.67+20', label: '3 six-weeks 26.67% each + exam 20%', periods: [0.8 / 3, 0.8 / 3, 0.8 / 3], exam: 0.2 },

@@ -1,5 +1,6 @@
 import type { Course } from '@/hac/types';
 
+import type { Backup } from './backup';
 import type { GpaPoint, HistoryPoint, Snapshot, Todo } from './db';
 
 /**
@@ -97,6 +98,18 @@ export async function setTodoDone(id: number, done: boolean, accountId?: string)
 export async function deleteTodo(id: number, accountId?: string): Promise<void> {
   const d = data(accountId);
   d.todos = d.todos.filter((t) => t.id !== id);
+}
+
+export async function exportAccountData(accountId?: string): Promise<Omit<Backup, 'app' | 'version' | 'exportedAt'>> {
+  const d = data(accountId);
+  return { snapshots: [...d.snapshots.values()], courseHistory: d.courseHistory, gpaHistory: d.gpaHistory, todos: d.todos };
+}
+
+export async function importAccountData(backup: Backup, accountId?: string): Promise<void> {
+  const d = data(accountId);
+  for (const s of backup.snapshots) d.snapshots.set(s.markingPeriod, s);
+  d.courseHistory.push(...backup.courseHistory);
+  d.gpaHistory.push(...backup.gpaHistory);
 }
 
 export async function deleteAccountData(accountId: string): Promise<void> {

@@ -83,6 +83,10 @@ export default function RootLayout() {
               <Stack.Screen name="progress" options={{ title: 'Progress Report' }} />
               <Stack.Screen name="settings" options={{ title: 'Settings' }} />
               <Stack.Screen name="add-account" options={{ title: 'Add Account', presentation: 'modal' }} />
+              <Stack.Screen name="gpa-planner" options={{ title: 'GPA Planner' }} />
+              <Stack.Screen name="finals" options={{ title: 'Final Exam Planner' }} />
+              <Stack.Screen name="compare" options={{ title: 'Compare Marking Periods' }} />
+              <Stack.Screen name="share-card" options={{ title: 'Share', presentation: 'modal' }} />
             </Stack.Protected>
             <Stack.Protected guard={status === 'signedOut'}>
               <Stack.Screen name="login" options={{ headerShown: false }} />

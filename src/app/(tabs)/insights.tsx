@@ -5,9 +5,10 @@ import { Sparkline } from '@/components/sparkline';
 import { ThemedText } from '@/components/themed-text';
 import { Card, Divider, EmptyState, ListRow, Screen, SectionHeader } from '@/components/ui';
 import { gradeColor } from '@/constants/theme';
-import { useCourseHistory, useGpaHistory, useGrades } from '@/data/queries';
+import { useCourseHistory, useGpaHistory, useGrades, useTranscript } from '@/data/queries';
 import { categoryImpact, computeAverage, formatAverage } from '@/grades/average';
 import { requiredAssignmentScore } from '@/grades/target';
+import { studyTips } from '@/grades/tips';
 import { useTheme } from '@/hooks/use-theme';
 import type { HistoryPoint } from '@/storage/db';
 
@@ -42,6 +43,14 @@ export default function InsightsScreen() {
   const courses = grades.data?.page.courses ?? [];
   const weighted = (gpa.data ?? []).map((p) => p.weighted).filter((v): v is number => v !== null);
   const moved = movers(history.data ?? []);
+  const transcript = useTranscript().data;
+  // The highest-impact tip from each class, biggest first.
+  const tips = courses
+    .flatMap((course) => {
+      const tip = studyTips(course)[0];
+      return tip ? [{ course, tip }] : [];
+    })
+    .sort((a, b) => b.tip.points - a.tip.points);
 
   const refresh = () => {
     void grades.refetch().then(() => {
@@ -52,6 +61,40 @@ export default function InsightsScreen() {
 
   return (
     <Screen title="Insights" refreshing={grades.isRefetching} onRefresh={refresh}>
+      <Card>
+        <ListRow icon="trending-up" title="GPA planner" subtitle="Your GPA if you finish with these grades" onPress={() => router.push('/gpa-planner')} />
+        <Divider />
+        <ListRow icon="school" title="Final exam planner" subtitle="Score needed on every final" onPress={() => router.push('/finals')} />
+        <Divider />
+        <ListRow icon="git-compare" title="Compare marking periods" onPress={() => router.push('/compare')} />
+        {transcript?.rank ? (
+          <>
+            <Divider />
+            <ListRow icon="podium" title="Class rank" subtitle="As reported on your HAC transcript" right={<ThemedText type="smallBold">{transcript.rank}</ThemedText>} />
+          </>
+        ) : null}
+      </Card>
+
+      {tips.length > 0 ? (
+        <>
+          <SectionHeader title="Top tips" />
+          <Card>
+            {tips.slice(0, 4).map(({ course, tip }, i) => (
+              <View key={course.id}>
+                {i > 0 ? <Divider /> : null}
+                <ListRow
+                  icon="bulb"
+                  iconColor={theme.warning}
+                  title={course.name}
+                  subtitle={tip.text}
+                  onPress={() => router.push({ pathname: '/class/[id]', params: { id: course.id } })}
+                />
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
+
       <SectionHeader title="GPA over time" />
       <Card>
         {weighted.length > 1 ? (

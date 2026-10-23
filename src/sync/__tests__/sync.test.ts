@@ -1,5 +1,5 @@
 import type { Course } from '@/hac/types';
-import { DEFAULT_SETTINGS } from '@/settings/settings';
+import { DEFAULT_SETTINGS, migrate } from '@/settings/settings';
 
 import { diffSnapshots } from '../diff';
 import { crossedBelow, currentGpa, selectNotifications } from '../sync';
@@ -49,6 +49,27 @@ describe('selectNotifications', () => {
     const posted = [course('a', 90, [1, 2, 3]), course('b', 90, [4])];
     const result = selectNotifications(diffSnapshots(many, posted), many, posted, DEFAULT_SETTINGS);
     expect(result).toEqual([{ title: '4 grade updates', body: 'Course a, Course b' }]);
+  });
+});
+
+describe('goal alerts', () => {
+  it('notifies once when a class drops below its goal', () => {
+    const settings = { ...DEFAULT_SETTINGS, notifyGrades: false, courseOverrides: { 'Course a': { goal: 90 } } };
+    const before = [course('a', 91)];
+    const after = [course('a', 89.5)];
+    expect(selectNotifications([], before, after, settings)).toEqual([
+      { title: 'Course a slipped below your goal', body: 'Now 89.50 (goal 90).' },
+    ]);
+    expect(selectNotifications([], after, after, settings)).toEqual([]);
+  });
+});
+
+describe('settings migration', () => {
+  it('moves the old 15% default final weight to 20%, but keeps other choices', () => {
+    expect(migrate({ ...DEFAULT_SETTINGS, version: 1, semesterPreset: '2x42.5+15' }).semesterPreset).toBe('2x40+20');
+    expect(migrate({ ...DEFAULT_SETTINGS, version: 1, semesterPreset: '2x45+10' }).semesterPreset).toBe('2x45+10');
+    expect(migrate({ ...DEFAULT_SETTINGS, version: 2, semesterPreset: '2x42.5+15' }).semesterPreset).toBe('2x42.5+15');
+    expect(DEFAULT_SETTINGS.semesterPreset).toBe('2x40+20');
   });
 });
 

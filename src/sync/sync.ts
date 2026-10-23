@@ -106,5 +106,15 @@ export function selectNotifications(
       });
     }
   }
+  // Per-class goals (set on the class page): alert when a class drops below its goal.
+  const before = new Map(previous.map((c) => [c.id, c.reportedAverage]));
+  for (const c of current) {
+    const goal = settings.courseOverrides[c.name]?.goal;
+    const old = before.get(c.id);
+    if (goal === undefined || c.reportedAverage === null || old === undefined || old === null) continue;
+    if (c.reportedAverage < goal && old >= goal) {
+      messages.push({ title: `${c.name} slipped below your goal`, body: `Now ${c.reportedAverage.toFixed(2)} (goal ${goal}).` });
+    }
+  }
   return messages;
 }

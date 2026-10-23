@@ -24,27 +24,44 @@ export interface Palette {
   success: string;
   warning: string;
   danger: string;
+  /** Off state of switches and other controls that must be visible (3:1 against cards). */
+  track: string;
+  /** Letter-grade colors: A green, B blue, C amber, F red. Readable as text on cards. */
+  gradeA: string;
+  gradeB: string;
+  gradeC: string;
+  gradeF: string;
 }
 
 export type ThemeColor = keyof Palette;
 
+/** Opacity of tinted backgrounds behind colored text (pills, badges, banners, icon tiles). */
+export const TINT_ALPHA = 0.1;
+
+// Every text color here meets WCAG AA (4.5:1) on `background`, `backgroundElement` and on its
+// own 14% tint; src/constants/__tests__/theme.test.ts checks all themes.
 const BASE_LIGHT: Palette = {
   text: '#11181C',
-  textSecondary: '#60646C',
+  textSecondary: '#5A5F67',
   background: '#F7F7F9',
   backgroundElement: '#FFFFFF',
   backgroundSelected: '#E6E8EE',
   border: '#E2E4EA',
-  tint: '#3D5AFE',
+  tint: '#3550E8',
   onTint: '#FFFFFF',
-  success: '#1F9D55',
-  warning: '#C27803',
-  danger: '#D93025',
+  success: '#0F6E38',
+  warning: '#8F5500',
+  danger: '#C5221F',
+  track: '#7A8089',
+  gradeA: '#0F6E38',
+  gradeB: '#1D5FD1',
+  gradeC: '#8F5500',
+  gradeF: '#C5221F',
 };
 
 const BASE_DARK: Palette = {
   text: '#ECEDEE',
-  textSecondary: '#A0A4AB',
+  textSecondary: '#A6AAB1',
   background: '#0B0C0E',
   backgroundElement: '#17181B',
   backgroundSelected: '#26282D',
@@ -54,6 +71,11 @@ const BASE_DARK: Palette = {
   success: '#4CC38A',
   warning: '#F0B429',
   danger: '#FF6B5E',
+  track: '#6E737D',
+  gradeA: '#4CC38A',
+  gradeB: '#6EA8FF',
+  gradeC: '#F0B429',
+  gradeF: '#FF6B5E',
 };
 
 export interface AppTheme {
@@ -65,13 +87,11 @@ export interface AppTheme {
   forceScheme?: 'light' | 'dark';
 }
 
-const theme = (id: string, name: string, light: Partial<Palette>, dark: Partial<Palette>, forceScheme?: 'dark'): AppTheme => ({
-  id,
-  name,
-  light: { ...BASE_LIGHT, ...light },
-  dark: { ...BASE_DARK, ...dark },
-  forceScheme,
-});
+const theme = (id: string, name: string, light: Partial<Palette>, dark: Partial<Palette>, forceScheme?: 'dark'): AppTheme => {
+  const darkPalette = { ...BASE_DARK, ...dark };
+  // A dark-only theme uses its dark palette everywhere (its light colors would never be readable).
+  return { id, name, light: forceScheme ? darkPalette : { ...BASE_LIGHT, ...light }, dark: darkPalette, forceScheme };
+};
 
 const midnight: Partial<Palette> = {
   background: '#0A0E1A',
@@ -87,19 +107,19 @@ export const THEMES: AppTheme[] = [
   theme(
     'green',
     'Green',
-    { tint: '#1E8E4E', background: '#F4F8F5', backgroundSelected: '#E2EFE6', border: '#D9E6DD' },
+    { tint: '#14733D', background: '#F4F8F5', backgroundSelected: '#E2EFE6', border: '#D9E6DD' },
     { tint: '#4ADE80', background: '#08100B', backgroundElement: '#111B15', backgroundSelected: '#1C2B21', border: '#22332A' },
   ),
   theme(
     'ocean',
     'Ocean',
-    { tint: '#0077B6', background: '#F3F8FB', backgroundSelected: '#DDEEF7', border: '#D3E4EE' },
+    { tint: '#00669C', background: '#F3F8FB', backgroundSelected: '#DDEEF7', border: '#D3E4EE' },
     { tint: '#4CC9F0', background: '#06111A', backgroundElement: '#0D1C28', backgroundSelected: '#16293A', border: '#1C3245' },
   ),
   theme(
     'sunset',
     'Sunset',
-    { tint: '#E8590C', background: '#FFF7F2', backgroundSelected: '#FBE6D9', border: '#F2DCCD' },
+    { tint: '#B8440A', background: '#FFF7F2', backgroundSelected: '#FBE6D9', border: '#F2DCCD' },
     { tint: '#FF922B', background: '#140B07', backgroundElement: '#1F130D', backgroundSelected: '#2E1D14', border: '#38241A' },
   ),
   theme(
@@ -117,7 +137,7 @@ export const THEMES: AppTheme[] = [
   theme(
     'lemon',
     'Lemon',
-    { tint: '#9A7D00', onTint: '#1A1600', background: '#FFFDF0', backgroundSelected: '#F7F0C8', border: '#EEE6BF' },
+    { tint: '#6E5900', onTint: '#FFFFFF', background: '#FFFDF0', backgroundSelected: '#F7F0C8', border: '#EEE6BF' },
     { tint: '#FFE066', onTint: '#1A1600', background: '#12110A', backgroundElement: '#1C1A10', backgroundSelected: '#2A2717', border: '#333020' },
   ),
   theme(
@@ -136,7 +156,7 @@ export const THEMES: AppTheme[] = [
   theme(
     'terracotta',
     'Terracotta',
-    { tint: '#B4502F', background: '#FBF5F2', backgroundSelected: '#F3E1D9', border: '#EAD7CE' },
+    { tint: '#A6492A', background: '#FBF5F2', backgroundSelected: '#F3E1D9', border: '#EAD7CE' },
     { tint: '#E9896A', background: '#130C09', backgroundElement: '#1E1410', backgroundSelected: '#2C1E17', border: '#36251D' },
   ),
 ];
@@ -148,13 +168,16 @@ export const themeById = (id: string): AppTheme => THEMES.find((t) => t.id === i
 /** The default theme's palettes, for code outside React that just needs neutral colors. */
 export const Colors = { light: THEMES[0].light, dark: THEMES[0].dark };
 
-/** Color for a percent grade: green A, neutral B, amber C, red failing. */
+/**
+ * Color for a percent grade, used everywhere a grade is shown (class list, badges,
+ * categories, assignments): A green, B blue, C amber, failing red, ungraded gray.
+ */
 export function gradeColor(average: number | null, theme: Palette): string {
   if (average === null) return theme.textSecondary;
-  if (average >= 90) return theme.success;
-  if (average >= 80) return theme.text;
-  if (average >= 70) return theme.warning;
-  return theme.danger;
+  if (average >= 90) return theme.gradeA;
+  if (average >= 80) return theme.gradeB;
+  if (average >= 70) return theme.gradeC;
+  return theme.gradeF;
 }
 
 export const Fonts = Platform.select({

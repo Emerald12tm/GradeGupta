@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Sparkline } from '@/components/sparkline';
 import { ThemedText } from '@/components/themed-text';
@@ -8,6 +8,7 @@ import {
   Banner,
   Button,
   Card,
+  Collapsible,
   Divider,
   ErrorState,
   GradeBadge,
@@ -21,12 +22,16 @@ import {
   TextField,
   ToggleRow,
   toNumber,
+  withAlpha,
 } from '@/components/ui';
-import { gradeColor, Spacing } from '@/constants/theme';
-import { useCourse, useCourseHistory } from '@/data/queries';
+import { gradeColor, Spacing, TINT_ALPHA } from '@/constants/theme';
+import { useCourse, useCourseHistory, useSchedule } from '@/data/queries';
 import { categoryImpact, formatAverage, formatScore } from '@/grades/average';
 import { averageMismatch } from '@/grades/solver';
+import { goalStatus } from '@/grades/planning';
 import { requiredAssignmentScore } from '@/grades/target';
+import { studyTips } from '@/grades/tips';
+import { teacherMailto } from '@/integrations/report';
 import { emptyEdits, hasEdits, whatIf, type WhatIfEdits } from '@/grades/whatif';
 import type { Assignment, Course, CourseLevel } from '@/hac/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -80,59 +85,75 @@ function ClassDetail({ course, period }: { course: Course; period?: string }) {
             )}
           </View>
         </View>
-        {history.length > 1 ? <Sparkline values={history.map((h) => h.average)} reference={90} /> : null}
+        {history.length > 1 ? <Sparkline values={history.map((h) => h.average)} reference={90} height={48} /> : null}
+        <Divider />
+        <ToggleRow
+          icon="flask"
+          title="What-if mode"
+          subtitle={whatIfOn ? 'Tap a score below to change it' : 'Try scores without changing HAC'}
+          value={whatIfOn}
+          onChange={setWhatIfOn}
+        />
+        {whatIfOn && hasEdits(edits) ? (
+          <Button title="Reset what-if changes" variant="secondary" icon="refresh" onPress={() => setEdits(emptyEdits())} />
+        ) : null}
       </Card>
 
       {mismatch ? (
-        <Card>
-          <ThemedText type="smallBold">The average doesn’t match the visible assignments</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            HAC shows {formatAverage(course.reportedAverage)} but the posted grades work out to{' '}
-            {formatAverage((course.reportedAverage ?? 0) - mismatch)}. Usually that means the teacher has already counted a
-            grade, often the final exam, that isn’t posted yet.
-          </ThemedText>
-          <Button
-            title="Figure out the hidden grade"
-            variant="secondary"
-            onPress={() =>
-              router.push({ pathname: '/calculator', params: { mode: 'hidden', course: course.id, period: period ?? '' } })
-            }
+        <Card onPress={() => router.push({ pathname: '/calculator', params: { mode: 'hidden', course: course.id, period: period ?? '' } })}>
+          <ListRow
+            icon="eye-off"
+            iconColor={theme.warning}
+            title="A grade may be hidden"
+            subtitle={`HAC shows ${formatAverage(course.reportedAverage)}, posted work adds up to ${formatAverage((course.reportedAverage ?? 0) - mismatch)}. Tap to find it.`}
           />
         </Card>
       ) : null}
 
-      <Card>
-        <ToggleRow
-          title="What-if mode"
-          subtitle="Change scores, drop assignments or add made-up ones. Nothing is sent to HAC."
-          value={whatIfOn}
-          onChange={setWhatIfOn}
-        />
-        {whatIfOn && hasEdits(edits) ? <Button title="Reset changes" variant="secondary" onPress={() => setEdits(emptyEdits())} /> : null}
-      </Card>
-
       {whatIfOn ? <AddHypothetical course={course} onAdd={(a) => setEdits((e) => ({ ...e, added: [...e.added, a] }))} /> : null}
 
-      <SectionHeader title="Categories" />
-      <Card>
-        {result.categories.map((c, i) => (
-          <View key={c.name}>
-            {i > 0 ? <Divider /> : null}
-            <ListRow
-              title={c.name}
-              subtitle={`Weight ${c.weight}%${c.effectiveWeight && Math.abs(c.effectiveWeight - c.weight) > 0.01 ? ` (counts ${c.effectiveWeight.toFixed(1)}% until every category has grades)` : ''}`}
-              right={<ThemedText style={{ color: gradeColor(c.average, theme) }}>{formatAverage(c.average)}</ThemedText>}
-            />
+      <Collapsible
+        title="Categories"
+        icon="pie-chart"
+        summary={
+          <View style={styles.categoryChips}>
+            {result.categories.map((c) => (
+              <ThemedText key={c.name} type="small" numberOfLines={1}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {c.name}{' '}
+                </ThemedText>
+                <ThemedText type="smallBold" style={{ color: gradeColor(c.average, theme) }}>
+                  {c.average === null ? '—' : c.average.toFixed(1)}
+                </ThemedText>
+              </ThemedText>
+            ))}
+          </View>
+        }>
+        {result.categories.map((c) => (
+          <View key={c.name} style={styles.categoryRow}>
+            <View style={styles.flex}>
+              <ThemedText type="small">{c.name}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {c.weight}% of grade
+                {c.effectiveWeight && Math.abs(c.effectiveWeight - c.weight) > 0.01 ? ` · counts ${c.effectiveWeight.toFixed(0)}% for now` : ''}
+              </ThemedText>
+            </View>
+            <ThemedText type="smallBold" style={{ color: gradeColor(c.average, theme) }}>
+              {formatAverage(c.average)}
+            </ThemedText>
           </View>
         ))}
         {categoryImpact(result)[0]?.pointsLost > 0.5 ? (
           <ThemedText type="small" themeColor="textSecondary">
-            {categoryImpact(result)[0].name} is costing you the most: {categoryImpact(result)[0].pointsLost.toFixed(2)} points.
+            {categoryImpact(result)[0].name} costs you the most: {categoryImpact(result)[0].pointsLost.toFixed(2)} points.
           </ThemedText>
         ) : null}
-      </Card>
+      </Collapsible>
 
       <WhatDoINeed course={course} />
+      <GoalSection course={course} />
+      <TipsSection course={course} />
+      <TeacherRow course={course} />
 
       <SectionHeader title={`Assignments (${course.assignments.length})`} />
       <Card>
@@ -211,9 +232,9 @@ function AssignmentRow({
     .join(' · ');
 
   return (
-    <View style={[styles.assignment, dropped && styles.dropped]}>
+    <View style={[styles.assignment, (override !== undefined || dropped) && [styles.edited, { backgroundColor: withAlpha(theme.tint, TINT_ALPHA) }]]}>
       <View style={styles.flex}>
-        <ThemedText numberOfLines={2}>{a.name}</ThemedText>
+        <ThemedText numberOfLines={2} style={dropped ? styles.dropped : undefined}>{a.name}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {subtitle}
         </ThemedText>
@@ -238,7 +259,7 @@ function AssignmentRow({
             accessibilityLabel={
               a.totalPoints === 0 ? `What-if extra credit points for ${a.name}` : `What-if score for ${a.name}, out of ${a.totalPoints}`
             }
-            style={[styles.scoreInput, { color: theme.text, borderColor: theme.border }]}
+            style={[styles.scoreInput, { color: theme.text, borderColor: override !== undefined ? theme.tint : theme.track, backgroundColor: theme.background }]}
           />
           <ThemedText type="small" themeColor="textSecondary">
             {a.totalPoints === 0 ? 'bonus pts' : `/ ${a.totalPoints}`}
@@ -274,8 +295,7 @@ function AddHypothetical({ course, onAdd }: { course: Course; onAdd: (a: Assignm
   const t = toNumber(total);
 
   return (
-    <Card>
-      <ThemedText type="smallBold">Add a made-up assignment</ThemedText>
+    <Collapsible title="Add a made-up assignment" icon="add-circle" summary="Score, points and category" defaultOpen>
       {course.categories.length > 1 ? (
         <Segmented options={course.categories.map((c) => ({ value: c.name, label: c.name }))} value={category} onChange={setCategory} />
       ) : null}
@@ -298,7 +318,7 @@ function AddHypothetical({ course, onAdd }: { course: Course; onAdd: (a: Assignm
           setName('');
         }}
       />
-    </Card>
+    </Collapsible>
   );
 }
 
@@ -311,29 +331,101 @@ function WhatDoINeed({ course }: { course: Course }) {
   const needed = t !== null && p ? requiredAssignmentScore(course, category, p, t) : undefined;
 
   let answer = '';
-  if (needed === null) answer = `Even a perfect score won’t get you to ${t} with one assignment.`;
-  else if (needed === 0) answer = `You’re already at ${t} or above whatever you score.`;
-  else if (needed !== undefined && p)
+  let short = '';
+  if (needed === null) {
+    answer = `Even a perfect score won’t get you to ${t} with one assignment.`;
+    short = `${t} isn’t reachable with one assignment`;
+  } else if (needed === 0) {
+    answer = `You’re already at ${t} or above whatever you score.`;
+    short = `You’re safe for ${t}`;
+  } else if (needed !== undefined && p) {
     answer = `You need ${needed.toFixed(1)}% (${((needed / 100) * p).toFixed(1)}/${p}) on the next ${category.toLowerCase()} assignment.`;
+    short = `${needed.toFixed(0)}% on the next ${category.toLowerCase()} for a ${t}`;
+  }
 
   return (
-    <>
-      <SectionHeader title="What do I need?" />
-      <Card>
-        {course.categories.length > 1 ? (
-          <Segmented options={course.categories.map((c) => ({ value: c.name, label: c.name }))} value={category} onChange={setCategory} />
-        ) : null}
-        <View style={styles.twoCol}>
-          <View style={styles.flex}>
-            <NumberField label="Target average" value={target} onChangeText={setTarget} />
-          </View>
-          <View style={styles.flex}>
-            <NumberField label="Assignment worth" value={points} onChangeText={setPoints} />
-          </View>
+    <Collapsible title="What do I need?" icon="flag" summary={short}>
+      {course.categories.length > 1 ? (
+        <Segmented options={course.categories.map((c) => ({ value: c.name, label: c.name }))} value={category} onChange={setCategory} />
+      ) : null}
+      <View style={styles.twoCol}>
+        <View style={styles.flex}>
+          <NumberField label="Target average" value={target} onChangeText={setTarget} />
         </View>
-        {answer ? <Banner text={answer} /> : null}
-      </Card>
-    </>
+        <View style={styles.flex}>
+          <NumberField label="Assignment worth" value={points} onChangeText={setPoints} />
+        </View>
+      </View>
+      {answer ? <Banner text={answer} /> : null}
+    </Collapsible>
+  );
+}
+
+const GOALS = [
+  { value: 'none', label: 'None' },
+  { value: '70', label: '70' },
+  { value: '80', label: '80' },
+  { value: '90', label: '90' },
+  { value: '95', label: '95' },
+] as const;
+
+/** Target grade for this class; alerts in the background when the class slips below it. */
+function GoalSection({ course }: { course: Course }) {
+  const theme = useTheme();
+  const settings = useSettings();
+  const setOverride = useSettingsStore((s) => s.setCourseOverride);
+  const goal = settings.courseOverrides[course.name]?.goal;
+  const status = goal !== undefined ? goalStatus(course, goal) : null;
+
+  let summary = 'Set a target and get alerts if you slip below it';
+  if (status) {
+    summary = status.met
+      ? `On track: ${status.gap.toFixed(1)} above your goal of ${goal}`
+      : status.nextNeeded === null
+        ? `${Math.abs(status.gap).toFixed(1)} below ${goal}. Out of reach with one assignment`
+        : `${Math.abs(status.gap).toFixed(1)} below ${goal}. Need ${status.nextNeeded.toFixed(0)}% on the next ${status.category?.toLowerCase()} grade`;
+  }
+
+  return (
+    <Collapsible title="Goal" icon={status?.met === false ? 'flag' : 'flag-outline'} summary={summary}>
+      <Segmented
+        options={GOALS.map((g) => ({ value: g.value, label: g.label }))}
+        value={goal === undefined ? 'none' : (GOALS.find((g) => g.value === String(goal))?.value ?? 'none')}
+        onChange={(v) => void setOverride(course.name, { goal: v === 'none' ? undefined : Number(v) })}
+      />
+      {status ? (
+        <ThemedText type="small" style={{ color: status.met ? theme.success : theme.warning }}>
+          {summary}.
+        </ThemedText>
+      ) : null}
+    </Collapsible>
+  );
+}
+
+function TipsSection({ course }: { course: Course }) {
+  const tips = useMemo(() => studyTips(course), [course]);
+  if (tips.length === 0) return null;
+  return (
+    <Collapsible title="Tips" icon="bulb" summary={tips[0].text}>
+      {tips.map((t, i) => (
+        <ThemedText key={i} type="small">
+          • {t.text}
+        </ThemedText>
+      ))}
+    </Collapsible>
+  );
+}
+
+/** Quick email to the teacher, when the schedule lists their address. */
+function TeacherRow({ course }: { course: Course }) {
+  const schedule = useSchedule().data ?? [];
+  const entry = schedule.find((s) => s.courseCode === course.id) ?? schedule.find((s) => s.name.toLowerCase() === course.name.toLowerCase());
+  if (!entry?.teacherEmail) return null;
+  const email = entry.teacherEmail;
+  return (
+    <Card onPress={() => void Linking.openURL(teacherMailto(email, course.name))}>
+      <ListRow icon="mail" title={`Email ${entry.teacher || 'teacher'}`} subtitle={email} />
+    </Card>
   );
 }
 
@@ -350,11 +442,14 @@ function CourseGpaSettings({ course }: { course: Course }) {
   const override = settings.courseOverrides[course.name] ?? {};
   const level = override.level ?? course.level;
 
+  const credits = override.credits ?? course.credits;
+  const summary = override.excludeFromGpa
+    ? 'Left out of GPA'
+    : `${LEVELS.find((l) => l.value === (level === 'ib' ? 'ap' : level))?.label} · ${credits} credit`;
+
   return (
-    <>
-      <SectionHeader title="GPA settings for this class" />
-      <Card>
-        <Segmented options={LEVELS} value={level === 'ib' ? 'ap' : level} onChange={(v) => void setOverride(course.name, { level: v })} />
+    <Collapsible title="GPA settings for this class" icon="school" summary={summary}>
+      <Segmented options={LEVELS} value={level === 'ib' ? 'ap' : level} onChange={(v) => void setOverride(course.name, { level: v })} />
         <Segmented
           options={[
             { value: '1', label: '1 credit' },
@@ -368,11 +463,10 @@ function CourseGpaSettings({ course }: { course: Course }) {
           value={!!override.excludeFromGpa}
           onChange={(v) => void setOverride(course.name, { excludeFromGpa: v })}
         />
-        <ThemedText type="small" themeColor="textSecondary">
-          Used for your GPA on the Grades tab.
-        </ThemedText>
-      </Card>
-    </>
+      <ThemedText type="small" themeColor="textSecondary">
+        Used for your GPA on the Grades tab.
+      </ThemedText>
+    </Collapsible>
   );
 }
 
@@ -381,9 +475,12 @@ const styles = StyleSheet.create({
   summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   right: { alignItems: 'flex-end' },
   assignment: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.two },
-  dropped: { opacity: 0.4 },
+  categoryChips: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.three },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.one },
+  dropped: { textDecorationLine: 'line-through', opacity: 0.7 },
+  edited: { borderRadius: 12, paddingHorizontal: Spacing.two, marginHorizontal: -Spacing.two },
   pills: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
   editCol: { alignItems: 'flex-end', gap: Spacing.one },
-  scoreInput: { width: 72, minHeight: 40, borderWidth: 1, borderRadius: 8, textAlign: 'center', fontSize: 16 },
+  scoreInput: { width: 84, minHeight: 44, borderWidth: 1.5, borderRadius: 10, textAlign: 'center', fontSize: 17, fontWeight: '700' },
   twoCol: { flexDirection: 'row', gap: Spacing.three },
 });

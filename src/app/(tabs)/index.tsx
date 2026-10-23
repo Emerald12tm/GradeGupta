@@ -14,7 +14,6 @@ import {
   Screen,
   SectionHeader,
   Segmented,
-  withAlpha,
 } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useGrades } from '@/data/queries';
@@ -60,20 +59,27 @@ export default function GradesScreen() {
         />
       ) : null}
 
-      {/* Hero: GPA on the theme's accent color. */}
+      {/* Hero: GPA on the theme's accent color, compact. */}
       <View style={[styles.hero, { backgroundColor: theme.tint }]}>
-        <ThemedText type="caption" style={{ color: withAlpha(theme.onTint, 0.75) }}>
-          Weighted GPA
-        </ThemedText>
-        <ThemedText type="title" style={{ color: theme.onTint, fontSize: 48, lineHeight: 54 }}>
-          {gpa.weighted?.toFixed(3) ?? '—'}
-        </ThemedText>
+        <View style={styles.heroMain}>
+          <ThemedText type="caption" style={{ color: theme.onTint }}>
+            Weighted GPA
+          </ThemedText>
+          <ThemedText type="title" style={{ color: theme.onTint }}>
+            {gpa.weighted?.toFixed(3) ?? '—'}
+          </ThemedText>
+        </View>
         <View style={styles.heroStats}>
-          <HeroStat label="Unweighted" value={gpa.unweighted?.toFixed(3) ?? '—'} color={theme.onTint} />
-          <HeroStat label="Classes" value={String(courses.length)} color={theme.onTint} />
+          <HeroStat label="Unweighted" value={gpa.unweighted?.toFixed(2) ?? '—'} color={theme.onTint} />
           <HeroStat label="Missing" value={String(missingTotal)} color={theme.onTint} />
         </View>
       </View>
+
+      {data.cached ? (
+        <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
+          Updating from HAC…
+        </ThemedText>
+      ) : null}
 
       {courses.length === 0 ? <EmptyState title="No classes in this marking period" icon="school-outline" /> : null}
 
@@ -128,7 +134,7 @@ function HeroStat({ label, value, color }: { label: string; value: string; color
       <ThemedText type="subtitle" style={{ color, fontSize: 20, lineHeight: 26 }}>
         {value}
       </ThemedText>
-      <ThemedText type="small" style={{ color: withAlpha(color, 0.75) }}>
+      <ThemedText type="small" style={{ color, opacity: 0.9 }}>
         {label}
       </ThemedText>
     </View>
@@ -136,9 +142,10 @@ function HeroStat({ label, value, color }: { label: string; value: string; color
 }
 
 const styles = StyleSheet.create({
-  hero: { borderRadius: 24, padding: Spacing.four, gap: Spacing.one },
-  heroStats: { flexDirection: 'row', gap: Spacing.three, marginTop: Spacing.two },
-  heroStat: { flex: 1 },
+  hero: { borderRadius: 20, paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, flexDirection: 'row', alignItems: 'center' },
+  heroMain: { flex: 1 },
+  heroStats: { gap: Spacing.two, alignItems: 'flex-end' },
+  heroStat: { alignItems: 'flex-end' },
   courseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   courseText: { flex: 1, gap: Spacing.one },
   courseName: { fontSize: 16, lineHeight: 22 },

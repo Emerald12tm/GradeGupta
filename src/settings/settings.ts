@@ -21,7 +21,12 @@ export interface CourseOverride {
   credits?: number;
   /** Leave the course out of GPA (e.g. athletics, pass/fail). */
   excludeFromGpa?: boolean;
+  /** Target average for the class (e.g. 90). Shown on the class page; alerts when it slips. */
+  goal?: number;
 }
+
+export type TextScale = 'default' | 'large' | 'larger';
+export const TEXT_SCALE_FACTOR: Record<TextScale, number> = { default: 1, large: 1.12, larger: 1.25 };
 
 export interface Settings {
   /** Key of `GPA_PRESETS`, or 'custom' to use `customGpaScale`. */
@@ -47,9 +52,23 @@ export interface Settings {
   themeId: string;
   /** Light/dark choice. 'system' follows the phone. */
   appearance: 'system' | 'light' | 'dark';
+  /** Bumped when a default changes in a way saved settings should pick up (see `migrate`). */
+  version: number;
+  /** App text size on top of the phone's own setting. */
+  textScale: TextScale;
+  /** Sunday-evening summary notification. */
+  weeklyDigest: boolean;
+  /** Keep HAC due dates in a "GradeGupta" phone calendar. */
+  calendarSync: boolean;
 }
 
+const SETTINGS_VERSION = 2;
+
 export const DEFAULT_SETTINGS: Settings = {
+  version: SETTINGS_VERSION,
+  textScale: 'default',
+  weeklyDigest: true,
+  calendarSync: false,
   themeId: DEFAULT_THEME_ID,
   appearance: 'system',
   gpaPreset: DEFAULT_GPA_PRESET,
@@ -67,7 +86,18 @@ const KEY = 'settings';
 
 export async function loadSettings(): Promise<Settings> {
   const saved = await kvGet<Partial<Settings>>(KEY);
-  return { ...DEFAULT_SETTINGS, ...saved };
+  return migrate({ ...DEFAULT_SETTINGS, ...saved, version: saved?.version ?? 1 });
+}
+
+/**
+ * Upgrades settings saved by older versions.
+ * v2: the default final exam weight became 20% (40/40/20). Settings saved before then
+ * carried the old 15% default without the user choosing it, so move them to the new default.
+ */
+export function migrate(s: Settings): Settings {
+  let out = s;
+  if (out.version < 2 && out.semesterPreset === '2x42.5+15') out = { ...out, semesterPreset: '2x40+20' };
+  return { ...out, version: SETTINGS_VERSION };
 }
 
 export function gpaScaleFor(s: Settings): GpaScale {

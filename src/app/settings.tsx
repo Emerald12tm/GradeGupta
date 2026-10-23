@@ -5,7 +5,7 @@ import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { runBackgroundSyncForTesting } from '@/background/task';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Divider, ListRow, NumberField, Screen, SectionHeader, Segmented, ToggleRow, toNumber } from '@/components/ui';
+import { Button, Card, Collapsible, Divider, ListRow, NumberField, Screen, SectionHeader, Segmented, ToggleRow, toNumber } from '@/components/ui';
 import { Spacing, THEMES, themeById } from '@/constants/theme';
 import { useSession } from '@/data/session';
 import { GPA_PRESETS } from '@/grades/gpa';
@@ -14,6 +14,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { semesterWeightsFor, useSettings, useSettingsStore } from '@/settings/settings';
 import { accountLabel } from '@/storage/accounts';
+import { queryClient } from '@/data/queries';
+import { pickTextFile, shareTextFile } from '@/integrations/share';
+import { makeBackup, parseBackup } from '@/storage/backup';
+import { exportAccountData, importAccountData } from '@/storage/db';
 import { requestNotificationPermission } from '@/sync/notifications';
 
 /** Settings: theme, accounts, GPA scale, semester formula, notifications, background checks, Face ID. */
@@ -83,6 +87,16 @@ export default function SettingsScreen() {
             {themeById(settings.themeId).name} is always dark.
           </ThemedText>
         ) : null}
+        <ThemedText type="smallBold">Text size</ThemedText>
+        <Segmented
+          options={[
+            { value: 'default', label: 'Default' },
+            { value: 'large', label: 'Large' },
+            { value: 'larger', label: 'Larger' },
+          ]}
+          value={settings.textScale}
+          onChange={(textScale) => void update({ textScale })}
+        />
       </Card>
 
       <SectionHeader title="Accounts" />
@@ -119,8 +133,8 @@ export default function SettingsScreen() {
         <Button title="Add account" variant="secondary" onPress={() => router.push('/add-account')} />
       </Card>
 
-      <SectionHeader title="GPA scale" />
-      <Card>
+      <SectionHeader title="Grades" />
+      <Collapsible title="GPA scale" icon="ribbon" summary={GPA_PRESETS[settings.gpaPreset]?.label ?? 'Custom'}>
         {Object.entries(GPA_PRESETS).map(([key, p], i) => (
           <View key={key}>
             {i > 0 ? <Divider /> : null}
@@ -132,10 +146,12 @@ export default function SettingsScreen() {
         <ThemedText type="small" themeColor="textSecondary">
           Set each class’s level (Regular/Honors/AP) and credits from its class page.
         </ThemedText>
-      </Card>
+      </Collapsible>
 
-      <SectionHeader title="Semester formula" />
-      <Card>
+      <Collapsible
+        title="Semester formula"
+        icon="calculator"
+        summary={SEMESTER_PRESETS.find((p) => p.id === settings.semesterPreset)?.label ?? 'Custom weights'}>
         {SEMESTER_PRESETS.map((p, i) => (
           <View key={p.id}>
             {i > 0 ? <Divider /> : null}
@@ -174,7 +190,7 @@ export default function SettingsScreen() {
             <Button title="Save custom" onPress={saveCustom} />
           </View>
         </View>
-      </Card>
+      </Collapsible>
 
       <SectionHeader title="Notifications" />
       <Card>
@@ -207,12 +223,60 @@ export default function SettingsScreen() {
         ) : null}
         <Divider />
         <ToggleRow
+          title="Weekly digest"
+          subtitle="Sunday evening: grade changes, missing work, what’s due"
+          value={settings.weeklyDigest}
+          onChange={(v) => void update({ weeklyDigest: v })}
+        />
+        <Divider />
+        <ToggleRow
           title="Check in the background"
           subtitle="Your phone decides how often, usually every 30 minutes to a few hours."
           value={settings.backgroundSync}
           onChange={(v) => void update({ backgroundSync: v })}
         />
         {__DEV__ ? <Button title="Run background check now (dev)" variant="secondary" onPress={() => void runBackgroundSyncForTesting()} /> : null}
+      </Card>
+
+      <SectionHeader title="Backup" />
+      <Card>
+        <ListRow
+          icon="cloud-upload"
+          title="Save grade history to a file"
+          subtitle="Keep your trends when you get a new phone. No passwords are included."
+          onPress={() =>
+            void (async () => {
+              try {
+                const backup = makeBackup(await exportAccountData());
+                await shareTextFile(`gradegupta-backup-${backup.exportedAt.slice(0, 10)}.json`, JSON.stringify(backup));
+              } catch (e) {
+                Alert.alert('Backup', e instanceof Error ? e.message : 'Couldn’t create the backup.');
+              }
+            })()
+          }
+        />
+        <Divider />
+        <ListRow
+          icon="cloud-download"
+          title="Restore from a backup file"
+          subtitle="Adds the file’s history to this account"
+          onPress={() =>
+            void (async () => {
+              try {
+                const text = await pickTextFile();
+                if (!text) return;
+                await importAccountData(parseBackup(text));
+                await queryClient.invalidateQueries();
+                Alert.alert('Backup', 'Your grade history was restored.');
+              } catch (e) {
+                Alert.alert('Backup', e instanceof Error ? e.message : 'Couldn’t restore that file.');
+              }
+            })()
+          }
+        />
+        <ThemedText type="small" themeColor="textSecondary">
+          Backup files contain your grades but aren’t encrypted, so keep them somewhere private.
+        </ThemedText>
       </Card>
 
       <SectionHeader title="Privacy" />

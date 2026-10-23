@@ -1,13 +1,18 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Divider, ListRow, Pill, Screen, SectionHeader, Segmented, TextField } from '@/components/ui';
+import { Button, Card, Divider, ListRow, Pill, Screen, SectionHeader, Segmented, TextField, ToggleRow } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
-import { useGrades, useTodoActions, useTodos } from '@/data/queries';
+import { useGrades, useSchedule, useTodoActions, useTodos } from '@/data/queries';
+import { useSession } from '@/data/session';
 import type { Assignment, Course } from '@/hac/types';
 import { useTheme } from '@/hooks/use-theme';
+import { syncDueDates } from '@/integrations/calendar';
+import { teacherMailto } from '@/integrations/report';
+import { useSettings, useSettingsStore } from '@/settings/settings';
 
 /**
  * Planner tab: missing work, assignments due soon (from HAC), and your own to-dos with
@@ -43,6 +48,10 @@ export default function PlannerScreen() {
   const { add, toggle, remove } = useTodoActions();
   const [title, setTitle] = useState('');
   const [reminder, setReminder] = useState<ReminderKey>('none');
+  const [calendarStatus, setCalendarStatus] = useState<string | null>(null);
+  const settings = useSettings();
+  const updateSettings = useSettingsStore((s) => s.update);
+  const accountId = useSession((s) => s.activeId);
 
   const courses = grades.data?.page.courses ?? [];
   const all: Item[] = courses.flatMap((course) => course.assignments.map((assignment) => ({ course, assignment })));
@@ -52,6 +61,30 @@ export default function PlannerScreen() {
     .sort((a, b) => (a.assignment.dateDue ?? '').localeCompare(b.assignment.dateDue ?? ''));
 
   const open = (i: Item) => router.push({ pathname: '/class/[id]', params: { id: i.course.id } });
+
+  const schedule = useSchedule().data ?? [];
+  const emailFor = (c: Course) =>
+    (schedule.find((s) => s.courseCode === c.id) ?? schedule.find((s) => s.name.toLowerCase() === c.name.toLowerCase()))?.teacherEmail;
+
+  const dueItems = () =>
+    upcoming.map((i) => ({ id: i.assignment.id, title: i.assignment.name, course: i.course.name, due: i.assignment.dateDue! }));
+
+  const syncCalendar = async () => {
+    if (!accountId) return;
+    try {
+      const r = await syncDueDates(dueItems(), accountId);
+      setCalendarStatus(`Calendar updated: ${r.added} added, ${r.removed} removed`);
+    } catch (e) {
+      Alert.alert('Calendar', e instanceof Error ? e.message : 'Couldn’t update the calendar.');
+    }
+  };
+
+  // With "keep in sync" on, quietly refresh the calendar whenever fresh grades arrive.
+  const syncedAt = grades.data && !grades.data.cached ? grades.data.syncedAt : null;
+  useEffect(() => {
+    if (settings.calendarSync && syncedAt && accountId) syncDueDates(dueItems(), accountId).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncedAt, settings.calendarSync, accountId]);
 
   return (
     <Screen title="Planner" refreshing={grades.isRefetching} onRefresh={grades.refetch}>
@@ -111,7 +144,20 @@ export default function PlannerScreen() {
             <ListRow
               title={i.assignment.name}
               subtitle={`${i.course.name} · due ${formatDue(i.assignment.dateDue)}`}
-              right={<Pill label="Missing" color={theme.danger} />}
+              right={
+                <View style={styles.missingRight}>
+                  <Pill label="Missing" color={theme.danger} />
+                  {emailFor(i.course) ? (
+                    <Pressable
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Email teacher about ${i.assignment.name}`}
+                      onPress={() => void Linking.openURL(teacherMailto(emailFor(i.course)!, i.course.name, i.assignment.name))}>
+                      <Ionicons name="mail" size={20} color={theme.tint} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              }
               onPress={() => open(i)}
             />
           </View>
@@ -120,6 +166,21 @@ export default function PlannerScreen() {
 
       <SectionHeader title={`Coming up (${upcoming.length})`} />
       <Card>
+        <ListRow
+          icon="calendar"
+          title={calendarStatus ?? 'Add due dates to my calendar'}
+          subtitle={settings.calendarSync ? 'Kept up to date in a “GradeGupta” calendar' : 'Creates a “GradeGupta” calendar on your phone'}
+          onPress={() => void syncCalendar()}
+        />
+        <ToggleRow
+          title="Keep calendar in sync"
+          value={settings.calendarSync}
+          onChange={(v) => {
+            void updateSettings({ calendarSync: v });
+            if (v) void syncCalendar();
+          }}
+        />
+        {upcoming.length > 0 ? <Divider /> : null}
         {upcoming.length === 0 ? (
           <ThemedText themeColor="textSecondary">No upcoming assignments posted in HAC yet.</ThemedText>
         ) : null}
@@ -140,6 +201,7 @@ export default function PlannerScreen() {
 }
 
 const styles = StyleSheet.create({
+  missingRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   flex: { flex: 1 },
   todo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.two },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2 },

@@ -48,7 +48,7 @@ export function DistrictPicker({ value, onChange }: { value: DistrictChoice; onC
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={`District: ${label}. Tap to change.`}
-        style={[styles.input, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
+        style={[styles.input, { borderColor: theme.track, backgroundColor: theme.backgroundElement }]}>
         <ThemedText themeColor={value ? 'text' : 'textSecondary'} numberOfLines={1} style={styles.flex}>
           {label}
         </ThemedText>
@@ -75,7 +75,7 @@ export function DistrictPicker({ value, onChange }: { value: DistrictChoice; onC
             autoCapitalize="none"
             clearButtonMode="while-editing"
             accessibilityLabel="Search districts"
-            style={[styles.search, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
+            style={[styles.search, { color: theme.text, borderColor: theme.track, backgroundColor: theme.backgroundElement }]}
           />
           <FlatList
             data={results}

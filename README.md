@@ -43,6 +43,23 @@ Your HAC password and grades **never leave your phone**. There's no server and n
 **Insights**
 - GPA over time, biggest changes this week, how close each class is to the next letter, and which category is costing you the most points.
 
+**Planning**
+- **GPA planner:** type the grade you expect in each class and see your projected GPA.
+- **Final exam planner:** the score needed on every final for an A, B or C, all on one screen. It uses the report card plus live averages for the unposted grading period.
+- **Goals:** set a target per class. You see how far you are from it, the score you need next, and you get an alert if a class slips below it.
+- **Tips:** study tips from your own numbers, such as missing work worth turning in, the category costing you the most, and how much the next test can swing your grade.
+- **Compare marking periods:** each class's average across marking periods, side by side.
+
+**Sharing and staying on top**
+- **Share grades:** a designed GPA image, or a full PDF grade report, through the share sheet.
+- **Calendar sync:** upcoming HAC due dates go into a "GradeGupta" calendar on your phone.
+- **Email teacher:** one tap from a class or a missing assignment, with a pre-filled subject.
+- **Weekly digest:** a Sunday-evening notification with grade changes, missing work and what's due.
+- **Backup and restore:** save your grade history to a file to keep your trends on a new phone. Passwords are never included.
+- **Attendance stats:** counts of tardies and absences.
+- **Text size:** Default, Large or Larger, on top of your phone's own setting.
+- **Demo mode:** try the app with sample grades, no HAC login needed.
+
 **Accounts and themes**
 - Pick your district from a searchable list (or type any HAC address).
 - Save several HAC accounts (siblings, or more than one district) and switch from the More tab. Each keeps its own grades, history and planner, and background alerts cover all of them.
@@ -131,7 +148,7 @@ docs/             Architecture, grade math and HAC scraping notes
 - **Background tasks don't run in the iOS Simulator.** Test them on a real device.
 - **Districts differ.** Parsers are tested against synthetic pages that copy HAC's markup. If something looks wrong for your district, see [HAC scraping](docs/HAC-SCRAPING.md#when-your-district-looks-different).
 - **Attendance** shows the month HAC opens on (usually the current one).
-- **Not built yet:** home-screen widgets.
+- **Not built yet:** home-screen widgets (they need native code, so they won't run in Expo Go), Spanish translation, encrypted backup files, and attendance for months other than the one HAC opens on.
 
 ## Privacy, terms and security
 

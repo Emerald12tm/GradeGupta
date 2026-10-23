@@ -7,10 +7,13 @@ import {
   getCourseHistory,
   getGpaHistory,
   getSnapshot,
+  kvGet,
+  kvSet,
   listTodos,
   setTodoDone,
   type Todo,
 } from '@/storage/db';
+import type { MarkingPeriod } from '@/hac/types';
 import { cancelReminder, scheduleReminder } from '@/sync/notifications';
 import { syncGrades, type SyncResult } from '@/sync/sync';
 
@@ -34,26 +37,38 @@ export const queryClient = new QueryClient({
 });
 
 export interface GradesData extends SyncResult {
+  /** HAC couldn't be reached; this is the last saved copy. */
   offline: boolean;
+  /** Shown instantly from the saved copy while a fresh sync runs. */
+  cached?: boolean;
 }
 
 const CURRENT = 'current';
+const periodsKey = () => `markingPeriods:${useSession.getState().activeId}`;
+
+/** The last saved grades for a marking period, shaped like a sync result, or null. */
+async function savedGrades(markingPeriod: string | undefined, flags: Pick<GradesData, 'offline' | 'cached'>): Promise<GradesData | null> {
+  const snapshot = await getSnapshot(markingPeriod ?? CURRENT);
+  if (!snapshot) return null;
+  return {
+    page: { courses: snapshot.courses, markingPeriods: (await kvGet<MarkingPeriod[]>(periodsKey())) ?? [] },
+    changes: [],
+    syncedAt: snapshot.takenAt,
+    markingPeriod: snapshot.markingPeriod,
+    ...flags,
+  };
+}
 
 async function loadGrades(markingPeriod?: string): Promise<GradesData> {
   try {
-    return { ...(await syncGrades(getClient(), { markingPeriod })), offline: false };
+    const result = await syncGrades(getClient(), { markingPeriod });
+    // Remember the marking-period list so the switcher shows up immediately next launch.
+    if (result.page.markingPeriods.length) void kvSet(periodsKey(), result.page.markingPeriods);
+    return { ...result, offline: false };
   } catch (error) {
     if (error instanceof HacError && (error.code === 'network' || error.code === 'timeout')) {
-      const snapshot = await getSnapshot(markingPeriod ?? CURRENT);
-      if (snapshot) {
-        return {
-          page: { courses: snapshot.courses, markingPeriods: [] },
-          changes: [],
-          syncedAt: snapshot.takenAt,
-          markingPeriod: snapshot.markingPeriod,
-          offline: true,
-        };
-      }
+      const saved = await savedGrades(markingPeriod, { offline: true });
+      if (saved) return saved;
     }
     throw error;
   }
@@ -65,10 +80,43 @@ async function loadGrades(markingPeriod?: string): Promise<GradesData> {
  */
 const useAccountId = () => useSession((s) => s.activeId);
 
-/** Classes and assignments for a marking period (current when omitted). */
+/**
+ * Classes and assignments for a marking period (current when omitted).
+ *
+ * Shows the last saved copy instantly (`data.cached`) while signing in to HAC and
+ * downloading fresh grades in the background, so screens never sit on a spinner when
+ * there's anything saved to show.
+ */
 export function useGrades(markingPeriod?: string) {
   const account = useAccountId();
-  return useQuery({ queryKey: [account, 'grades', markingPeriod ?? CURRENT], queryFn: () => loadGrades(markingPeriod) });
+  const key = markingPeriod ?? CURRENT;
+  const saved = useQuery({
+    queryKey: [account, 'savedGrades', key],
+    queryFn: () => savedGrades(markingPeriod, { offline: false, cached: true }),
+    staleTime: Infinity,
+  });
+  return useQuery({
+    queryKey: [account, 'grades', key],
+    queryFn: () => loadGrades(markingPeriod),
+    placeholderData: saved.data ?? undefined,
+  });
+}
+
+/**
+ * Grades for several marking periods, for comparing them side by side. Loaded one after
+ * another (not in parallel): each period switch is a postback on the same HAC session.
+ */
+export function useGradesForPeriods(markingPeriods: string[]) {
+  const account = useAccountId();
+  return useQuery({
+    queryKey: [account, 'compare', ...markingPeriods],
+    enabled: markingPeriods.length > 0,
+    queryFn: async () => {
+      const results: GradesData[] = [];
+      for (const mp of markingPeriods) results.push(await loadGrades(mp));
+      return results;
+    },
+  });
 }
 
 /** One course from `useGrades`, by section code. */

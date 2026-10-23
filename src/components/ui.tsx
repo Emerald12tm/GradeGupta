@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import type { ComponentProps, ReactNode } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  LayoutAnimation,
   Platform,
   Pressable,
   RefreshControl,
@@ -18,7 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, gradeColor, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, gradeColor, MaxContentWidth, Spacing, TINT_ALPHA } from '@/constants/theme';
 import { letterGrade } from '@/grades/average';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
@@ -138,7 +139,7 @@ export function IconTile({ name, color }: { name: IconName; color?: string }) {
   const theme = useTheme();
   const c = color ?? theme.tint;
   return (
-    <View style={[styles.iconTile, { backgroundColor: withAlpha(c, 0.14) }]}>
+    <View style={[styles.iconTile, { backgroundColor: withAlpha(c, TINT_ALPHA) }]}>
       <Ionicons name={name} size={18} color={c} />
     </View>
   );
@@ -189,6 +190,54 @@ export function ListRow({
   );
 }
 
+/**
+ * A card that shows a one-line header (title + summary) and expands to reveal its content.
+ * Keeps secondary tools (categories, "what do I need", settings) out of the way until needed.
+ */
+export function Collapsible({
+  title,
+  summary,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary?: ReactNode;
+  icon?: IconName;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const theme = useTheme();
+  const surface = useSurface();
+  const [open, setOpen] = useState(defaultOpen);
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    tapFeedback();
+    setOpen((o) => !o);
+  };
+  return (
+    <View style={[styles.collapsible, surface]}>
+      <Pressable onPress={toggle} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={title} style={styles.collapsibleHeader}>
+        {icon ? <IconTile name={icon} /> : null}
+        <View style={styles.rowText}>
+          <ThemedText type="smallBold">{title}</ThemedText>
+          {summary ? (
+            typeof summary === 'string' ? (
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={open ? undefined : 1}>
+                {summary}
+              </ThemedText>
+            ) : (
+              summary
+            )
+          ) : null}
+        </View>
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={theme.textSecondary} />
+      </Pressable>
+      {open ? <View style={styles.collapsibleBody}>{children}</View> : null}
+    </View>
+  );
+}
+
 export function Divider() {
   const theme = useTheme();
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.border }} />;
@@ -210,8 +259,16 @@ export function Button({
   loading?: boolean;
 }) {
   const theme = useTheme();
-  const bg = variant === 'primary' ? theme.tint : variant === 'danger' ? withAlpha(theme.danger, 0.14) : withAlpha(theme.tint, 0.12);
-  const fg = variant === 'primary' ? theme.onTint : variant === 'danger' ? theme.danger : theme.tint;
+  const off = disabled && !loading;
+  // Disabled buttons use solid gray with readable text instead of fading (faded text was hard to see).
+  const bg = off
+    ? theme.backgroundSelected
+    : variant === 'primary'
+      ? theme.tint
+      : variant === 'danger'
+        ? withAlpha(theme.danger, TINT_ALPHA)
+        : withAlpha(theme.tint, TINT_ALPHA);
+  const fg = off ? theme.textSecondary : variant === 'primary' ? theme.onTint : variant === 'danger' ? theme.danger : theme.tint;
   return (
     <Pressable
       onPress={() => {
@@ -221,7 +278,7 @@ export function Button({
       disabled={disabled || loading}
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled || loading }}
-      style={({ pressed }) => [styles.button, { backgroundColor: bg, opacity: disabled ? 0.45 : 1 }, pressed && styles.pressedScale]}>
+      style={({ pressed }) => [styles.button, { backgroundColor: bg }, pressed && styles.pressedScale]}>
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
@@ -241,7 +298,7 @@ export function TextField({ label, hint, ...props }: TextInputProps & { label: s
       <ThemedText type="smallBold">{label}</ThemedText>
       <TextInput
         placeholderTextColor={theme.textSecondary}
-        style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+        style={[styles.input, { color: theme.text, borderColor: theme.track, backgroundColor: theme.background }]}
         accessibilityLabel={label}
         {...props}
       />
@@ -328,7 +385,7 @@ export function Pill({ label, color, icon }: { label: string; color?: string; ic
   const theme = useTheme();
   const c = color ?? theme.textSecondary;
   return (
-    <View style={[styles.pill, { backgroundColor: withAlpha(c, 0.14) }]}>
+    <View style={[styles.pill, { backgroundColor: withAlpha(c, TINT_ALPHA) }]}>
       {icon ? <Ionicons name={icon} size={12} color={c} /> : null}
       <ThemedText type="small" style={{ color: c, fontWeight: '600', fontSize: 12, lineHeight: 16 }}>
         {label}
@@ -344,12 +401,12 @@ export function GradeBadge({ average, size = 'medium' }: { average: number | nul
   const large = size === 'large';
   return (
     <View
-      style={[styles.badge, large && styles.badgeLarge, { backgroundColor: withAlpha(color === theme.text ? theme.tint : color, 0.12) }]}
+      style={[styles.badge, large && styles.badgeLarge, { backgroundColor: withAlpha(color, TINT_ALPHA) }]}
       accessibilityLabel={average === null ? 'No grade yet' : `Average ${average.toFixed(2)}, ${letterGrade(average)}`}>
-      <ThemedText type={large ? 'title' : 'subtitle'} style={{ color: color === theme.text ? theme.tint : color }}>
+      <ThemedText type={large ? 'title' : 'subtitle'} style={{ color: color }}>
         {average === null ? '—' : large ? average.toFixed(2) : average.toFixed(1)}
       </ThemedText>
-      <ThemedText type="caption" style={{ color: color === theme.text ? theme.tint : color }}>
+      <ThemedText type="caption" style={{ color: color }}>
         {letterGrade(average)}
       </ThemedText>
     </View>
@@ -382,8 +439,10 @@ export function ToggleRow({
             tapFeedback();
             onChange(v);
           }}
-          trackColor={{ true: theme.tint, false: theme.backgroundSelected }}
-          thumbColor={Platform.OS === 'android' ? theme.backgroundElement : undefined}
+          trackColor={{ true: theme.tint, false: theme.track }}
+          // A light knob when off and the accent's contrast color when on, so the switch reads clearly in every theme.
+          thumbColor={Platform.OS === 'android' ? (value ? theme.onTint : '#F2F3F5') : undefined}
+          ios_backgroundColor={theme.track}
         />
       }
     />
@@ -470,7 +529,7 @@ export function Banner({ text, tone = 'info' }: { text: string; tone?: 'info' | 
   const theme = useTheme();
   const color = tone === 'warning' ? theme.warning : theme.tint;
   return (
-    <View style={[styles.banner, { backgroundColor: withAlpha(color, 0.12) }]}>
+    <View style={[styles.banner, { backgroundColor: withAlpha(color, TINT_ALPHA) }]}>
       <Ionicons name={tone === 'warning' ? 'alert-circle' : 'information-circle'} size={18} color={color} />
       <ThemedText type="small" style={[styles.flex, { color: theme.text }]}>
         {text}
@@ -510,6 +569,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.one,
   },
   iconTile: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  collapsible: { borderRadius: 20, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  collapsibleHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, minHeight: 48 },
+  collapsibleBody: { gap: Spacing.two, paddingTop: Spacing.two, paddingBottom: Spacing.one },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

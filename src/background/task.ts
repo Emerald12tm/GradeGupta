@@ -1,9 +1,12 @@
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 
-import { HacClient } from '@/hac/client';
+import { createClient } from '@/hac/demo';
 import { loadSettings } from '@/settings/settings';
 import { accountLabel, listAccounts, loadCredentials } from '@/storage/accounts';
+import { getCourseHistory, getSnapshot, kvGet, kvSet } from '@/storage/db';
+import { buildDigest, shouldSendDigest, weekKey } from '@/sync/digest';
+import { notify } from '@/sync/notifications';
 import { syncGrades } from '@/sync/sync';
 
 /**
@@ -32,7 +35,7 @@ TaskManager.defineTask(SYNC_TASK, async () => {
     try {
       const credentials = await loadCredentials(account.id);
       if (!credentials) continue;
-      await syncGrades(new HacClient(credentials), {
+      await syncGrades(createClient(credentials), {
         notify: true,
         accountId: account.id,
         label: accounts.length > 1 ? accountLabel(account) : undefined,
@@ -41,6 +44,19 @@ TaskManager.defineTask(SYNC_TASK, async () => {
       failed = true;
     }
   }
+
+  // Weekly digest: once, Sunday from 5pm, built from each account's saved grades.
+  const now = new Date();
+  if (settings.weeklyDigest && shouldSendDigest(now, await kvGet<string>('digestWeek'))) {
+    for (const account of accounts) {
+      const snapshot = await getSnapshot('current', account.id);
+      if (!snapshot) continue;
+      const digest = buildDigest(snapshot.courses, await getCourseHistory(undefined, account.id), now);
+      await notify(accounts.length > 1 ? `${accountLabel(account)}: ${digest.title}` : digest.title, digest.body);
+    }
+    await kvSet('digestWeek', weekKey(now));
+  }
+
   return failed ? BackgroundTask.BackgroundTaskResult.Failed : BackgroundTask.BackgroundTaskResult.Success;
 });
 

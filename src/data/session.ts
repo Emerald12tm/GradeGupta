@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 
 import { districtForUrl } from '@/config/districts';
-import { HacClient, HacError, type HacCredentials } from '@/hac/client';
+import { HacError, type HacClient, type HacCredentials } from '@/hac/client';
+import { createClient } from '@/hac/demo';
 import {
   listAccounts,
   loadCredentials,
@@ -55,7 +56,7 @@ async function activate(id: string | null): Promise<void> {
   client = null;
   if (!id) return;
   const credentials = await loadCredentials(id);
-  if (credentials) client = new HacClient(credentials);
+  if (credentials) client = createClient(credentials);
 }
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -71,7 +72,7 @@ export const useSession = create<SessionState>((set, get) => ({
   },
 
   addAccount: async ({ districtName, ...credentials }) => {
-    const candidate = new HacClient(credentials);
+    const candidate = createClient(credentials);
     await candidate.login();
     const studentName = await candidate
       .getStudentInfo()

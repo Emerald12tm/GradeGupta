@@ -2,6 +2,8 @@ import * as SQLite from 'expo-sqlite';
 
 import type { Course } from '@/hac/types';
 
+import type { Backup } from './backup';
+
 /**
  * Local SQLite storage. Nothing is uploaded anywhere.
  *
@@ -249,6 +251,58 @@ export async function setTodoDone(id: number, done: boolean, accountId?: string)
 
 export async function deleteTodo(id: number, accountId?: string): Promise<void> {
   await (await accountDb(accountId)).runAsync('DELETE FROM todos WHERE id = ?', id);
+}
+
+// ---------- backup ----------
+
+/** Everything the backup file holds for one account (no credentials). */
+export async function exportAccountData(accountId?: string): Promise<Omit<Backup, 'app' | 'version' | 'exportedAt'>> {
+  const db = await accountDb(accountId);
+  const snapshots = (await db.getAllAsync<{ marking_period: string; taken_at: string; courses: string }>('SELECT * FROM snapshots')).map(
+    (r) => ({ markingPeriod: r.marking_period, takenAt: r.taken_at, courses: JSON.parse(r.courses) as Course[] }),
+  );
+  return {
+    snapshots,
+    courseHistory: await getCourseHistory(undefined, accountId),
+    gpaHistory: await getGpaHistory(accountId),
+    todos: await listTodos(accountId),
+  };
+}
+
+/**
+ * Merges a backup into an account. History rows are added if missing (never overwritten),
+ * snapshots only replace older ones, and to-dos are added unless the same title/due exists.
+ */
+export async function importAccountData(backup: Backup, accountId?: string): Promise<void> {
+  const db = await accountDb(accountId);
+  for (const s of backup.snapshots) {
+    const existing = await getSnapshot(s.markingPeriod, accountId);
+    if (!existing || existing.takenAt < s.takenAt) await saveSnapshot(s, accountId);
+  }
+  for (const h of backup.courseHistory) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO course_history (course_id, course_name, taken_at, average) VALUES (?, ?, ?, ?)',
+      h.courseId,
+      h.courseName,
+      h.takenAt,
+      h.average,
+    );
+  }
+  for (const g of backup.gpaHistory) {
+    await db.runAsync('INSERT OR IGNORE INTO gpa_history (taken_at, weighted, unweighted) VALUES (?, ?, ?)', g.takenAt, g.weighted, g.unweighted);
+  }
+  const todos = await listTodos(accountId);
+  for (const t of backup.todos) {
+    if (todos.some((x) => x.title === t.title && x.due === t.due)) continue;
+    await db.runAsync(
+      'INSERT INTO todos (title, due, course_id, done, notification_id, created_at) VALUES (?, ?, ?, ?, NULL, ?)',
+      t.title,
+      t.due,
+      t.courseId,
+      t.done ? 1 : 0,
+      new Date().toISOString(),
+    );
+  }
 }
 
 /** Deletes one account's database file (used when the account is removed). */

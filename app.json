@@ -45,6 +45,13 @@
         {
           "faceIDPermission": "GradeGupta uses Face ID to keep your grades private."
         }
+      ],
+      "expo-sharing",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "GradeGupta adds your assignment due dates to a GradeGupta calendar when you ask it to."
+        }
       ]
     ],
     "experiments": {
